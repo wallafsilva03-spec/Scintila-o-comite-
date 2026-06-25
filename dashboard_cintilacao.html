@@ -1,0 +1,427 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Performance Operacional × Cintilação</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<style>
+  :root{
+    --bg:#eef0f2; --card:#ffffff; --ink:#2b3a30; --dim:#7c8a80; --faint:#a7b2aa;
+    --line:#e2e6e2; --rail:#16241b; --rail2:#1f3527;
+    --green:#52a447; --green2:#7cc06f; --amber:#e6a52e; --orange:#e8842c; --red:#d9534f;
+    --sem:#52a447; --fraca:#e6a52e; --moderada:#e8842c; --forte:#d9534f;
+    --sans:'Segoe UI',-apple-system,BlinkMacSystemFont,Roboto,sans-serif;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{background:var(--bg);color:var(--ink);font-family:var(--sans);font-size:13px}
+  .app{display:flex;min-height:100vh}
+
+  /* sidebar */
+  .rail{width:62px;background:var(--rail);flex-shrink:0;display:flex;flex-direction:column;
+    align-items:center;padding-top:10px;gap:2px}
+  .rail .logo{width:38px;height:38px;border-radius:9px;background:var(--rail2);
+    display:grid;place-items:center;font-size:18px;margin-bottom:14px}
+  .rail .nav{display:flex;flex-direction:column;align-items:center;gap:4px;width:100%}
+  .rail .item{width:100%;padding:9px 0;display:flex;flex-direction:column;align-items:center;
+    gap:3px;color:#7f9587;cursor:pointer;border-left:3px solid transparent;font-size:8.5px;
+    text-align:center;transition:.15s}
+  .rail .item .ic{font-size:17px}
+  .rail .item:hover{color:#cfe0d4}
+  .rail .item.on{color:#fff;border-left-color:var(--green2);background:rgba(124,192,111,.12)}
+
+  /* main */
+  .main{flex:1;padding:14px 16px 30px;min-width:0}
+  .topbar{display:flex;justify-content:space-between;align-items:flex-start;
+    padding:4px 4px 14px;border-bottom:1px solid var(--line);margin-bottom:14px}
+  .topbar .ttl{font-size:13px;color:var(--dim);text-align:right;line-height:1.35;font-weight:600}
+  .topbar .ttl b{color:var(--ink)}
+  .filters{display:flex;align-items:center;gap:10px}
+  .daterange{display:flex;align-items:center;gap:6px;background:var(--card);
+    border:1px solid var(--line);border-radius:8px;padding:6px 10px}
+  .daterange label{font-size:10px;color:var(--faint);text-transform:uppercase;letter-spacing:.05em}
+  .daterange input{border:none;font-family:var(--sans);font-size:12px;color:var(--ink);
+    background:transparent;outline:none;width:108px}
+  .filtbtn{background:var(--card);border:1px solid var(--line);border-radius:8px;
+    width:34px;height:34px;display:grid;place-items:center;cursor:pointer;font-size:15px;color:var(--dim)}
+  .importbtn{background:var(--rail2);color:#fff;border:none;border-radius:8px;padding:8px 14px;
+    font-size:12px;font-weight:600;cursor:pointer;position:relative;overflow:hidden}
+  .importbtn input{position:absolute;inset:0;opacity:0;cursor:pointer;width:100%}
+  .importbtn.done{background:var(--green)}
+
+  /* kpi row */
+  .kpirow{display:grid;grid-template-columns:repeat(6,1fr);gap:10px;margin-bottom:14px}
+  @media(max-width:1100px){.kpirow{grid-template-columns:repeat(3,1fr)}}
+  @media(max-width:640px){.kpirow{grid-template-columns:repeat(2,1fr)}}
+  .kpi{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:11px 13px;
+    position:relative;border-top:3px solid var(--rail)}
+  .kpi .h{font-size:11px;font-weight:700;color:var(--ink);margin-bottom:9px;
+    display:flex;justify-content:space-between;align-items:center}
+  .kpi .big{font-size:23px;font-weight:700;letter-spacing:-.01em}
+  .kpi .sec{font-size:14px;font-weight:600;color:var(--faint);text-align:right;margin-top:2px}
+  .kpi .meta{font-size:10px;color:var(--dim);margin-top:7px}
+  .kpi .barbg{height:4px;border-radius:2px;background:var(--line);margin-top:4px;overflow:hidden}
+  .kpi .barfg{height:100%;border-radius:2px}
+  .kpi .spark{font-size:14px;opacity:.5}
+
+  /* content grid */
+  .row{display:grid;gap:12px;margin-bottom:12px}
+  .row.r2{grid-template-columns:1fr 1fr}
+  @media(max-width:960px){.row.r2{grid-template-columns:1fr}}
+  .panel{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:14px 15px}
+  .panel h3{font-size:12.5px;font-weight:700;margin-bottom:2px}
+  .panel .pdesc{font-size:10.5px;color:var(--dim);margin-bottom:12px}
+  .chartbox{position:relative;height:230px}
+  .chartbox.sm{height:200px}
+  .chartbox.lg{height:300px}
+
+  .badge{display:inline-block;padding:2px 9px;border-radius:20px;font-size:10px;font-weight:700;color:#fff}
+  .legend{display:flex;gap:14px;flex-wrap:wrap;margin-top:10px;font-size:11px;color:var(--dim)}
+  .legend span{display:flex;align-items:center;gap:5px}
+  .legend i{width:9px;height:9px;border-radius:50%;display:inline-block}
+  .demoflag{font-size:10px;color:var(--amber);font-weight:600}
+
+  /* debug box */
+  #debugBox{display:none;background:#1a1a1a;color:#7fc;font-family:monospace;font-size:11px;
+    padding:10px 14px;border-radius:8px;margin-bottom:12px;white-space:pre-wrap;max-height:120px;overflow:auto}
+</style>
+</head>
+<body>
+<div class="app">
+  <!-- sidebar -->
+  <aside class="rail">
+    <div class="logo">🌱</div>
+    <nav class="nav">
+      <div class="item on"><span class="ic">📊</span>Visão Geral</div>
+      <div class="item"><span class="ic">🛰️</span>RTK</div>
+      <div class="item"><span class="ic">🌙</span>Cintilação</div>
+      <div class="item"><span class="ic">⏱️</span>Horas</div>
+      <div class="item"><span class="ic">⚠️</span>Risco</div>
+      <div class="item"><span class="ic">🚜</span>Frota</div>
+    </nav>
+  </aside>
+
+  <!-- main -->
+  <div class="main">
+    <div class="topbar">
+      <div class="filters">
+        <button class="importbtn" id="btnRtk">Importar RTK<input type="file" id="fileRtk" accept=".txt,.csv"></button>
+        <button class="importbtn" id="btnSci">Importar Cintilação<input type="file" id="fileSci" accept=".txt,.csv"></button>
+      </div>
+      <div class="filters">
+        <div class="daterange">
+          <label>De</label><input type="date" id="dtIni">
+          <label>Até</label><input type="date" id="dtFim">
+        </div>
+        <div class="filtbtn" title="Filtrar">▼</div>
+      </div>
+    </div>
+    <div style="text-align:right;margin:-6px 4px 12px;font-size:12px;color:var(--dim)">
+      Análise de Performance — <b style="color:var(--ink)">Operação RTK × Cintilação Ionosférica</b>
+      <span class="demoflag" id="demoFlag"> · dados de exemplo</span>
+    </div>
+
+    <!-- debug info -->
+    <div id="debugBox"></div>
+
+    <!-- KPIs -->
+    <div class="kpirow" id="kpirow"></div>
+
+    <!-- charts -->
+    <div class="row r2">
+      <div class="panel">
+        <h3>Horas operacionais por faixa de cintilação</h3>
+        <div class="pdesc">Soma das horas em estado E sob cada nível de severidade.</div>
+        <div class="chartbox"><canvas id="cScale"></canvas></div>
+      </div>
+      <div class="panel">
+        <h3>Participação de cada faixa</h3>
+        <div class="pdesc">Proporção do tempo operado por severidade.</div>
+        <div class="chartbox"><canvas id="cDonut"></canvas></div>
+      </div>
+    </div>
+
+    <div class="row">
+      <div class="panel">
+        <h3>Horas operacionais por hora do dia (UTC)</h3>
+        <div class="pdesc">A janela noturna concentra a cintilação — e o risco de imprecisão do piloto.</div>
+        <div class="chartbox lg"><canvas id="cHour"></canvas></div>
+      </div>
+    </div>
+
+    <div class="row">
+      <div class="panel">
+        <h3>Exposição ao risco <span class="badge" style="background:var(--red)">horas críticas</span></h3>
+        <div class="pdesc">Horas operadas sob cintilação Moderada e Forte, por hora do dia.</div>
+        <div class="chartbox lg"><canvas id="cRisk"></canvas></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+const ORDER=['Sem cintilacao','Fraca','Moderada','Forte'];
+const COLOR={'Sem cintilacao':'#52a447','Fraca':'#e6a52e','Moderada':'#e8842c','Forte':'#d9534f'};
+const LABEL={'Sem cintilacao':'Sem cintilação','Fraca':'Fraca','Moderada':'Moderada','Forte':'Forte'};
+
+let rtkRows=null, sciMap=null, charts={}, usingDemo=true;
+
+/* ---------- demo data ---------- */
+function makeDemo(){
+  const rows=[]; const base=new Date(Date.UTC(2026,0,1,0,0,0));
+  const map=new Map();
+  for(let d=0;d<30;d++){
+    for(let slot=0;slot<48;slot++){
+      const h=Math.floor(slot/2), bb=slot%2?'30':'00';
+      let esc='Sem cintilacao';
+      if(h>=23||h<=4){ const r=Math.random(); esc=r<.3?'Forte':r<.6?'Moderada':'Fraca'; }
+      else if(h>=21||h<=6){ esc=Math.random()<.4?'Fraca':'Sem cintilacao'; }
+      const dd=String(d+1).padStart(2,'0');
+      map.set(`2026-01-${dd} ${String(h).padStart(2,'0')}:${bb}`,esc);
+      const intensidade=(h>=6&&h<=20)?0.9:0.5;
+      if(Math.random()<intensidade){
+        const dt=new Date(base); dt.setUTCDate(d+1); dt.setUTCHours(h); dt.setUTCMinutes(bb==='30'?40:10);
+        rows.push({dt,horas:+(0.2+Math.random()*0.5).toFixed(2)});
+      }
+    }
+  }
+  rows._meta={totalE:rows.length,semData:0};
+  return {rows,map};
+}
+
+/* ---------- helpers ---------- */
+function parseNum(s){if(s==null)return NaN;s=String(s).trim();if(s==='')return NaN;
+  if(s.includes(',')&&s.includes('.'))s=s.replace(/\./g,'').replace(',','.');
+  else if(s.includes(','))s=s.replace(',','.');const n=parseFloat(s);return isNaN(n)?NaN:n;}
+
+function parseDateUTC(s){if(!s)return null;s=s.trim();let m;
+  m=s.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})[ T]+(\d{1,2}):(\d{2})(?::(\d{2}))?/);
+  if(m)return new Date(Date.UTC(+m[3],+m[2]-1,+m[1],+m[4],+m[5],+(m[6]||0)));
+  m=s.match(/^(\d{4})-(\d{1,2})-(\d{1,2})[ T]+(\d{1,2}):(\d{2})(?::(\d{2}))?/);
+  if(m)return new Date(Date.UTC(+m[1],+m[2]-1,+m[3],+m[4],+m[5],+(m[6]||0)));return null;}
+
+function blockKey(dt){const y=dt.getUTCFullYear(),mo=String(dt.getUTCMonth()+1).padStart(2,'0'),
+  d=String(dt.getUTCDate()).padStart(2,'0'),h=String(dt.getUTCHours()).padStart(2,'0'),
+  bb=dt.getUTCMinutes()<30?'00':'30';return `${y}-${mo}-${d} ${h}:${bb}`;}
+
+function detectSep(l){return l.includes(';')?';':l.includes('\t')?'\t':',';}
+
+/* normaliza data DD/MM/YYYY → YYYY-MM-DD (deixa YYYY-MM-DD inalterado) */
+function normDate(s){
+  let m=s.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
+  if(m)return `${m[3]}-${m[2].padStart(2,'0')}-${m[1].padStart(2,'0')}`;
+  m=s.match(/^(\d{4})-(\d{1,2})-(\d{1,2})$/);
+  if(m)return `${m[1]}-${m[2].padStart(2,'0')}-${m[3].padStart(2,'0')}`;
+  return s; // devolve como está se não reconhecer
+}
+
+/* normaliza nome da escala, tolerando acentos e capitalização variada */
+function normEscala(s){
+  if(!s)return null;
+  const u=s.trim().toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g,'');
+  if(u==='0'||u===''||u.includes('sem'))return 'Sem cintilacao';
+  if(u==='1'||u==='fraca'||u==='weak'||u==='low')return 'Fraca';
+  if(u==='2'||u==='moderada'||u==='moderate'||u==='med')return 'Moderada';
+  if(u==='3'||u==='forte'||u==='strong'||u==='high')return 'Forte';
+  return null;
+}
+
+function parseRtk(text){
+  const lines=text.split(/\r?\n/).filter(l=>l.trim()!=='');
+  if(lines.length<2)throw new Error('vazio');
+  const sep=detectSep(lines[0]);const H=lines[0].split(sep).map(h=>h.trim().toUpperCase());
+  const iE=H.findIndex(h=>h==='ESTADO'),iU=H.findIndex(h=>h.includes('DATA/HORA UTC')),
+    iH=H.findIndex(h=>h==='HRS OPERACIONAIS');
+  if(iE<0||iU<0||iH<0)throw new Error('colunas não encontradas: precisa de ESTADO, DATA/HORA UTC, HRS OPERACIONAIS');
+  const rows=[];let totalE=0,semData=0;
+  for(let i=1;i<lines.length;i++){const c=lines[i].split(sep);
+    if(c.length<=Math.max(iE,iU,iH))continue;
+    if(c[iE].trim().toUpperCase()!=='E')continue;totalE++;
+    const dt=parseDateUTC(c[iU]),horas=parseNum(c[iH]);
+    if(!dt||isNaN(horas)){semData++;continue;}rows.push({dt,horas});}
+  rows._meta={totalE,semData};return rows;
+}
+
+function parseSci(text){
+  const lines=text.split(/\r?\n/).filter(l=>l.trim()!=='');
+  if(lines.length<2)throw new Error('arquivo vazio');
+  const sep=detectSep(lines[0]);
+
+  // detecta se primeira linha é cabeçalho
+  const start=lines[0].toUpperCase().replace(/[̀-ͯ]/g,'').includes('DAT')?1:0;
+
+  // mostra primeiras linhas no debug para diagnóstico
+  const preview=lines.slice(0,Math.min(4,lines.length)).join('\n');
+
+  const map=new Map();
+  let parsed=0, skipped=0, badEscala=new Set();
+
+  for(let i=start;i<lines.length;i++){
+    const c=lines[i].split(sep);
+    if(c.length<3)continue;
+
+    const datePart=c[0].trim();
+    const horaPart=c[1].trim();
+
+    // data normalizada para YYYY-MM-DD
+    const dataKey=normDate(datePart);
+
+    // blocos de 30 min: minutos < 30 → '00', >= 30 → '30'
+    const timeParts=horaPart.split(':');
+    if(timeParts.length<2)continue;
+    const hh=timeParts[0].padStart(2,'0');
+    const bb=parseInt(timeParts[1],10)>=30?'30':'00';
+
+    // tenta col 3 primeiro (índice 3), depois col 2, depois col 4
+    let escala=null;
+    for(const ci of [3,2,4]){
+      if(c[ci]!==undefined){escala=normEscala(c[ci]);if(escala)break;}
+    }
+
+    if(!escala){
+      if(c[3]!==undefined)badEscala.add(c[3].trim());
+      skipped++;
+      continue;
+    }
+
+    map.set(`${dataKey} ${hh}:${bb}`,escala);
+    parsed++;
+  }
+
+  // diagnóstico
+  const dbg=document.getElementById('debugBox');
+  const info=[
+    `Cintilação: ${parsed} entradas lidas, ${skipped} linhas puladas`,
+    `Separador: "${sep==='\\t'?'TAB':sep}"  |  Cabeçalho: ${start?'sim':'não'}`,
+    `Amostra de chaves geradas: ${[...map.keys()].slice(0,3).join(', ')}`,
+    badEscala.size?`Valores de escala não reconhecidos: ${[...badEscala].slice(0,5).join(', ')}`:'',
+    `Prévia do arquivo:\n${preview}`
+  ].filter(Boolean).join('\n');
+  dbg.textContent=info; dbg.style.display='block';
+
+  if(map.size===0)throw new Error(
+    `Nenhuma entrada válida encontrada.\n`+
+    `Verifique se o arquivo tem: data (col 1), hora (col 2), ..., escala (col 3 ou 4).\n`+
+    `Valores esperados para escala: Sem cintilação, Fraca, Moderada, Forte (ou 0/1/2/3).\n`+
+    `Prévia:\n${preview}`
+  );
+  return map;
+}
+
+/* ---------- file load ---------- */
+function load(input,kind){const f=input.files[0];if(!f)return;const r=new FileReader();
+  r.onload=e=>{try{
+    if(kind==='rtk'){
+      rtkRows=parseRtk(e.target.result);
+      document.getElementById('btnRtk').classList.add('done');
+      document.getElementById('btnRtk').firstChild.textContent='RTK ✓ ';
+    } else {
+      sciMap=parseSci(e.target.result);
+      document.getElementById('btnSci').classList.add('done');
+      document.getElementById('btnSci').firstChild.textContent='Cintilação ✓ ';
+    }
+    if(rtkRows&&sciMap){
+      usingDemo=false;
+      document.getElementById('demoFlag').textContent='';
+      // fecha debug se tudo casou bem
+      setTimeout(()=>{if(document.getElementById('debugBox').textContent.includes('0 reg'))
+        document.getElementById('debugBox').style.display='none';},2000);
+    }
+    render();
+  }catch(err){alert('Erro ao ler '+(kind==='rtk'?'RTK':'cintilação')+':\n'+err.message);}};
+  r.readAsText(f,'utf-8');}
+document.getElementById('fileRtk').addEventListener('change',function(){load(this,'rtk');});
+document.getElementById('fileSci').addEventListener('change',function(){load(this,'sci');});
+document.getElementById('dtIni').addEventListener('change',render);
+document.getElementById('dtFim').addEventListener('change',render);
+
+/* ---------- aggregate + render ---------- */
+function render(){
+  let rows=rtkRows, map=sciMap;
+  if(usingDemo){const d=makeDemo();rows=d.rows;map=d.map;}
+
+  const ini=document.getElementById('dtIni').value, fim=document.getElementById('dtFim').value;
+  let rf=rows;
+  if(ini){const di=new Date(ini+'T00:00:00Z');rf=rf.filter(r=>r.dt>=di);}
+  if(fim){const df=new Date(fim+'T23:59:59Z');rf=rf.filter(r=>r.dt<=df);}
+
+  const horas={'Sem cintilacao':0,'Fraca':0,'Moderada':0,'Forte':0};
+  const cnt={'Sem cintilacao':0,'Fraca':0,'Moderada':0,'Forte':0};
+  const porHora={};for(let h=0;h<24;h++)porHora[h]={'Sem cintilacao':0,'Fraca':0,'Moderada':0,'Forte':0};
+  let total=0,nMatch=0;
+  for(const r of rf){const e=map.get(blockKey(r.dt));if(!e||!(e in horas))continue;
+    horas[e]+=r.horas;cnt[e]++;porHora[r.dt.getUTCHours()][e]+=r.horas;total+=r.horas;nMatch++;}
+
+  // atualiza debug com info de cruzamento quando dados reais estão carregados
+  if(!usingDemo){
+    const dbg=document.getElementById('debugBox');
+    const prev=dbg.textContent;
+    const sampleKey=rf.length?blockKey(rf[0].dt):'—';
+    dbg.textContent=prev+`\n\nCruzamento: ${nMatch} de ${rf.length} registros RTK casaram com cintilação`+
+      `\nExemplo de chave RTK: "${sampleKey}"`;
+    dbg.style.display='block';
+  }
+
+  const forte=horas['Forte'],degr=horas['Moderada']+horas['Forte'];
+  const pctForte=total?forte/total*100:0, pctDegr=total?degr/total*100:0;
+  const pctSem=total?horas['Sem cintilacao']/total*100:0;
+
+  const kpis=[
+    {h:'Horas Operacionais',big:total.toFixed(1)+'h',sec:nMatch+' reg.',meta:'operações casadas',pct:100,col:'var(--green)',spark:'📈'},
+    {h:'Sem Cintilação',big:pctSem.toFixed(1)+'%',sec:horas['Sem cintilacao'].toFixed(1)+'h',meta:'tempo limpo',pct:pctSem,col:'var(--sem)',spark:'📈'},
+    {h:'Cintilação Fraca',big:(total?horas['Fraca']/total*100:0).toFixed(1)+'%',sec:horas['Fraca'].toFixed(1)+'h',meta:'baixo impacto',pct:total?horas['Fraca']/total*100:0,col:'var(--fraca)',spark:'〰️'},
+    {h:'Moderada',big:(total?horas['Moderada']/total*100:0).toFixed(1)+'%',sec:horas['Moderada'].toFixed(1)+'h',meta:'atenção',pct:total?horas['Moderada']/total*100:0,col:'var(--orange)',spark:'〰️'},
+    {h:'Forte',big:pctForte.toFixed(1)+'%',sec:forte.toFixed(1)+'h',meta:'risco de erro RTK',pct:pctForte,col:'var(--red)',spark:'⚠️'},
+    {h:'Impacto (Mod+Forte)',big:pctDegr.toFixed(1)+'%',sec:degr.toFixed(1)+'h',meta:'exposição total',pct:pctDegr,col:'var(--red)',spark:'⚠️'},
+  ];
+  document.getElementById('kpirow').innerHTML=kpis.map(k=>`
+    <div class="kpi" style="border-top-color:${k.col}">
+      <div class="h">${k.h}<span class="spark">${k.spark}</span></div>
+      <div class="big" style="color:${k.col}">${k.big}</div>
+      <div class="sec">${k.sec}</div>
+      <div class="meta">${k.meta}</div>
+      <div class="barbg"><div class="barfg" style="width:${Math.min(100,k.pct)}%;background:${k.col}"></div></div>
+    </div>`).join('');
+
+  drawCharts(horas,porHora);
+}
+
+function drawCharts(horas,porHora){
+  Object.values(charts).forEach(c=>c&&c.destroy());
+  Chart.defaults.color='#7c8a80';Chart.defaults.font.family="'Segoe UI',sans-serif";
+  Chart.defaults.borderColor='#e2e6e2';Chart.defaults.font.size=11;
+
+  charts.scale=new Chart(document.getElementById('cScale'),{type:'bar',
+    data:{labels:ORDER.map(e=>LABEL[e]),datasets:[{data:ORDER.map(e=>+horas[e].toFixed(2)),
+      backgroundColor:ORDER.map(e=>COLOR[e]),borderRadius:5,maxBarThickness:70}]},
+    options:{plugins:{legend:{display:false}},scales:{y:{beginAtZero:true,title:{display:true,text:'horas'}},x:{grid:{display:false}}}}});
+
+  charts.donut=new Chart(document.getElementById('cDonut'),{type:'doughnut',
+    data:{labels:ORDER.map(e=>LABEL[e]),datasets:[{data:ORDER.map(e=>+horas[e].toFixed(2)),
+      backgroundColor:ORDER.map(e=>COLOR[e]),borderColor:'#fff',borderWidth:2}]},
+    options:{cutout:'60%',plugins:{legend:{position:'right',labels:{padding:12,boxWidth:11}}}}});
+
+  charts.hour=new Chart(document.getElementById('cHour'),{type:'bar',
+    data:{labels:[...Array(24).keys()].map(h=>String(h).padStart(2,'0')+'h'),
+      datasets:ORDER.map(e=>({label:LABEL[e],data:[...Array(24).keys()].map(h=>+porHora[h][e].toFixed(2)),
+        backgroundColor:COLOR[e]}))},
+    options:{plugins:{legend:{position:'top',labels:{boxWidth:11,padding:10}}},
+      scales:{x:{stacked:true,grid:{display:false}},y:{stacked:true,beginAtZero:true,title:{display:true,text:'horas'}}}}});
+
+  const horasArr=[...Array(24).keys()];
+  charts.risk=new Chart(document.getElementById('cRisk'),{type:'bar',
+    data:{labels:horasArr.map(h=>String(h).padStart(2,'0')+'h'),
+      datasets:[
+        {label:'Moderada',data:horasArr.map(h=>+porHora[h]['Moderada'].toFixed(2)),backgroundColor:COLOR['Moderada']},
+        {label:'Forte',data:horasArr.map(h=>+porHora[h]['Forte'].toFixed(2)),backgroundColor:COLOR['Forte']}
+      ]},
+    options:{indexAxis:'y',plugins:{legend:{position:'top',labels:{boxWidth:11,padding:10}}},
+      scales:{x:{stacked:true,beginAtZero:true,title:{display:true,text:'horas'}},y:{stacked:true,grid:{display:false}}}}});
+}
+
+document.getElementById('dtIni').value='2026-01-01';
+document.getElementById('dtFim').value='2026-01-30';
+render();
+</script>
+</body>
+</html>
