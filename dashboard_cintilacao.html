@@ -17,7 +17,7 @@
   body{background:var(--bg);color:var(--ink);font-family:var(--sans);font-size:13px}
   .app{display:flex;min-height:100vh}
 
-  /* sidebar */
+  /* ── sidebar ── */
   .rail{width:62px;background:var(--rail);flex-shrink:0;display:flex;flex-direction:column;
     align-items:center;padding-top:10px;gap:2px}
   .rail .logo{width:38px;height:38px;border-radius:9px;background:var(--rail2);
@@ -25,18 +25,16 @@
   .rail .nav{display:flex;flex-direction:column;align-items:center;gap:4px;width:100%}
   .rail .item{width:100%;padding:9px 0;display:flex;flex-direction:column;align-items:center;
     gap:3px;color:#7f9587;cursor:pointer;border-left:3px solid transparent;font-size:8.5px;
-    text-align:center;transition:.15s}
+    text-align:center;transition:.15s;user-select:none}
   .rail .item .ic{font-size:17px}
-  .rail .item:hover{color:#cfe0d4}
+  .rail .item:hover{color:#cfe0d4;background:rgba(255,255,255,.06)}
   .rail .item.on{color:#fff;border-left-color:var(--green2);background:rgba(124,192,111,.12)}
 
-  /* main */
+  /* ── topbar ── */
   .main{flex:1;padding:14px 16px 30px;min-width:0}
   .topbar{display:flex;justify-content:space-between;align-items:flex-start;
-    padding:4px 4px 14px;border-bottom:1px solid var(--line);margin-bottom:14px}
-  .topbar .ttl{font-size:13px;color:var(--dim);text-align:right;line-height:1.35;font-weight:600}
-  .topbar .ttl b{color:var(--ink)}
-  .filters{display:flex;align-items:center;gap:10px}
+    padding:4px 4px 14px;border-bottom:1px solid var(--line);margin-bottom:14px;gap:10px;flex-wrap:wrap}
+  .filters{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
   .daterange{display:flex;align-items:center;gap:6px;background:var(--card);
     border:1px solid var(--line);border-radius:8px;padding:6px 10px}
   .daterange label{font-size:10px;color:var(--faint);text-transform:uppercase;letter-spacing:.05em}
@@ -48,8 +46,11 @@
     font-size:12px;font-weight:600;cursor:pointer;position:relative;overflow:hidden}
   .importbtn input{position:absolute;inset:0;opacity:0;cursor:pointer;width:100%}
   .importbtn.done{background:var(--green)}
+  .pdfbtn{background:var(--card);color:var(--ink);border:1px solid var(--line);border-radius:8px;
+    padding:8px 14px;font-size:12px;font-weight:600;cursor:pointer;display:flex;align-items:center;gap:5px}
+  .pdfbtn:hover{background:var(--line)}
 
-  /* kpi row */
+  /* ── kpi row ── */
   .kpirow{display:grid;grid-template-columns:repeat(6,1fr);gap:10px;margin-bottom:14px}
   @media(max-width:1100px){.kpirow{grid-template-columns:repeat(3,1fr)}}
   @media(max-width:640px){.kpirow{grid-template-columns:repeat(2,1fr)}}
@@ -63,45 +64,81 @@
   .kpi .barbg{height:4px;border-radius:2px;background:var(--line);margin-top:4px;overflow:hidden}
   .kpi .barfg{height:100%;border-radius:2px}
   .kpi .spark{font-size:14px;opacity:.5}
+  .kpirow4{grid-template-columns:repeat(4,1fr)!important}
+  @media(max-width:900px){.kpirow4{grid-template-columns:repeat(2,1fr)!important}}
 
-  /* content grid */
+  /* ── panels / charts ── */
   .row{display:grid;gap:12px;margin-bottom:12px}
   .row.r2{grid-template-columns:1fr 1fr}
-  @media(max-width:960px){.row.r2{grid-template-columns:1fr}}
+  .row.r3{grid-template-columns:1fr 1fr 1fr}
+  @media(max-width:960px){.row.r2,.row.r3{grid-template-columns:1fr}}
   .panel{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:14px 15px}
   .panel h3{font-size:12.5px;font-weight:700;margin-bottom:2px}
   .panel .pdesc{font-size:10.5px;color:var(--dim);margin-bottom:12px}
   .chartbox{position:relative;height:230px}
-  .chartbox.sm{height:200px}
+  .chartbox.sm{height:180px}
   .chartbox.lg{height:300px}
+  .chartbox.xl{height:360px}
 
   .badge{display:inline-block;padding:2px 9px;border-radius:20px;font-size:10px;font-weight:700;color:#fff}
-  .legend{display:flex;gap:14px;flex-wrap:wrap;margin-top:10px;font-size:11px;color:var(--dim)}
-  .legend span{display:flex;align-items:center;gap:5px}
-  .legend i{width:9px;height:9px;border-radius:50%;display:inline-block}
   .demoflag{font-size:10px;color:var(--amber);font-weight:600}
+  .tabtitle{font-size:15px;font-weight:700;color:var(--ink);margin-bottom:14px;
+    padding-bottom:8px;border-bottom:2px solid var(--line);display:flex;align-items:center;gap:8px}
+  .tabtitle .ic{font-size:20px}
 
-  /* debug box */
+  /* ── table ── */
+  .tbl{width:100%;border-collapse:collapse;font-size:11.5px}
+  .tbl th{text-align:left;padding:6px 8px;background:var(--bg);font-weight:700;color:var(--dim);
+    font-size:10px;text-transform:uppercase;letter-spacing:.04em;border-bottom:2px solid var(--line)}
+  .tbl td{padding:6px 8px;border-bottom:1px solid var(--line)}
+  .tbl tr:last-child td{border-bottom:none}
+  .tbl tr:hover td{background:var(--bg)}
+  .dot{width:8px;height:8px;border-radius:50%;display:inline-block;margin-right:5px;vertical-align:middle}
+
+  /* ── placeholder ── */
+  .placeholder{text-align:center;padding:60px 20px;color:var(--faint)}
+  .placeholder .big{font-size:48px;margin-bottom:12px}
+  .placeholder p{font-size:13px;line-height:1.6;max-width:320px;margin:0 auto}
+
+  /* ── debug ── */
   #debugBox{display:none;background:#1a1a1a;color:#7fc;font-family:monospace;font-size:11px;
     padding:10px 14px;border-radius:8px;margin-bottom:12px;white-space:pre-wrap;max-height:120px;overflow:auto}
+
+  /* ── tab panes ── */
+  .tab-pane{display:none}
+  .tab-pane.active{display:block}
+
+  /* ── print ── */
+  @media print{
+    .rail,.topbar,.pdfbtn,#debugBox,.demoflag{display:none!important}
+    .main{padding:0}
+    body{background:#fff}
+    .tab-pane{display:block!important}
+    .panel{break-inside:avoid;border:1px solid #ccc}
+    .chartbox,.chartbox.lg,.chartbox.xl{height:220px}
+    .print-header{display:block!important}
+  }
+  .print-header{display:none;font-size:11px;color:#555;margin-bottom:8px;padding-bottom:6px;
+    border-bottom:1px solid #ccc}
 </style>
 </head>
 <body>
 <div class="app">
-  <!-- sidebar -->
+
+  <!-- ── sidebar ── -->
   <aside class="rail">
     <div class="logo">🌱</div>
     <nav class="nav">
-      <div class="item on"><span class="ic">📊</span>Visão Geral</div>
-      <div class="item"><span class="ic">🛰️</span>RTK</div>
-      <div class="item"><span class="ic">🌙</span>Cintilação</div>
-      <div class="item"><span class="ic">⏱️</span>Horas</div>
-      <div class="item"><span class="ic">⚠️</span>Risco</div>
-      <div class="item"><span class="ic">🚜</span>Frota</div>
+      <div class="item on" data-tab="geral"><span class="ic">📊</span>Visão Geral</div>
+      <div class="item" data-tab="rtk"><span class="ic">🛰️</span>RTK</div>
+      <div class="item" data-tab="cintilacao"><span class="ic">🌙</span>Cintilação</div>
+      <div class="item" data-tab="horas"><span class="ic">⏱️</span>Horas</div>
+      <div class="item" data-tab="risco"><span class="ic">⚠️</span>Risco</div>
+      <div class="item" data-tab="frota"><span class="ic">🚜</span>Frota</div>
     </nav>
   </aside>
 
-  <!-- main -->
+  <!-- ── main ── -->
   <div class="main">
     <div class="topbar">
       <div class="filters">
@@ -114,59 +151,191 @@
           <label>Até</label><input type="date" id="dtFim">
         </div>
         <div class="filtbtn" title="Filtrar">▼</div>
+        <button class="pdfbtn" onclick="exportPDF()">🖨️ Exportar PDF</button>
       </div>
     </div>
-    <div style="text-align:right;margin:-6px 4px 12px;font-size:12px;color:var(--dim)">
-      Análise de Performance — <b style="color:var(--ink)">Operação RTK × Cintilação Ionosférica</b>
-      <span class="demoflag" id="demoFlag"> · dados de exemplo</span>
-    </div>
 
-    <!-- debug info -->
+    <div class="print-header" id="printHeader"></div>
     <div id="debugBox"></div>
 
-    <!-- KPIs -->
-    <div class="kpirow" id="kpirow"></div>
-
-    <!-- charts -->
-    <div class="row r2">
-      <div class="panel">
-        <h3>Horas operacionais por faixa de cintilação</h3>
-        <div class="pdesc">Soma das horas em estado E sob cada nível de severidade.</div>
-        <div class="chartbox"><canvas id="cScale"></canvas></div>
+    <!-- ══════════════ ABA: VISÃO GERAL ══════════════ -->
+    <div class="tab-pane active" id="pane-geral">
+      <div class="kpirow" id="kpirow"></div>
+      <div class="row r2">
+        <div class="panel">
+          <h3>Horas operacionais por faixa de cintilação</h3>
+          <div class="pdesc">Soma das horas em estado E sob cada nível de severidade.</div>
+          <div class="chartbox"><canvas id="cScale"></canvas></div>
+        </div>
+        <div class="panel">
+          <h3>Participação de cada faixa</h3>
+          <div class="pdesc">Proporção do tempo operado por severidade.</div>
+          <div class="chartbox"><canvas id="cDonut"></canvas></div>
+        </div>
       </div>
-      <div class="panel">
-        <h3>Participação de cada faixa</h3>
-        <div class="pdesc">Proporção do tempo operado por severidade.</div>
-        <div class="chartbox"><canvas id="cDonut"></canvas></div>
+      <div class="row">
+        <div class="panel">
+          <h3>Horas operacionais por hora do dia (UTC)</h3>
+          <div class="pdesc">A janela noturna concentra a cintilação — e o risco de imprecisão do piloto.</div>
+          <div class="chartbox lg"><canvas id="cHour"></canvas></div>
+        </div>
+      </div>
+      <div class="row">
+        <div class="panel">
+          <h3>Exposição ao risco <span class="badge" style="background:var(--red)">horas críticas</span></h3>
+          <div class="pdesc">Horas operadas sob cintilação Moderada e Forte, por hora do dia.</div>
+          <div class="chartbox lg"><canvas id="cRisk"></canvas></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ══════════════ ABA: RTK ══════════════ -->
+    <div class="tab-pane" id="pane-rtk">
+      <div class="tabtitle"><span class="ic">🛰️</span>Análise RTK</div>
+      <div class="kpirow kpirow4" id="kpirowRtk"></div>
+      <div class="row r2">
+        <div class="panel">
+          <h3>Horas operacionais por dia</h3>
+          <div class="pdesc">Evolução diária das horas em estado E.</div>
+          <div class="chartbox lg"><canvas id="cRtkDay"></canvas></div>
+        </div>
+        <div class="panel">
+          <h3>Distribuição por hora do dia</h3>
+          <div class="pdesc">Quando a operação RTK concentra mais horas.</div>
+          <div class="chartbox lg"><canvas id="cRtkHour"></canvas></div>
+        </div>
+      </div>
+      <div class="row">
+        <div class="panel">
+          <h3>Top 10 — dias com mais horas operadas</h3>
+          <div class="pdesc">Datas de maior produtividade no período filtrado.</div>
+          <div id="rtkTopTable"></div>
+        </div>
       </div>
     </div>
 
-    <div class="row">
-      <div class="panel">
-        <h3>Horas operacionais por hora do dia (UTC)</h3>
-        <div class="pdesc">A janela noturna concentra a cintilação — e o risco de imprecisão do piloto.</div>
-        <div class="chartbox lg"><canvas id="cHour"></canvas></div>
+    <!-- ══════════════ ABA: CINTILAÇÃO ══════════════ -->
+    <div class="tab-pane" id="pane-cintilacao">
+      <div class="tabtitle"><span class="ic">🌙</span>Análise de Cintilação</div>
+      <div class="row r2">
+        <div class="panel">
+          <h3>Distribuição geral de severidade</h3>
+          <div class="pdesc">Participação de cada nível nas horas operadas.</div>
+          <div class="chartbox xl"><canvas id="cSciDonut"></canvas></div>
+        </div>
+        <div class="panel">
+          <h3>Severidade por hora do dia (UTC)</h3>
+          <div class="pdesc">Padrão horário da cintilação no período.</div>
+          <div class="chartbox xl"><canvas id="cSciHour"></canvas></div>
+        </div>
+      </div>
+      <div class="row">
+        <div class="panel">
+          <h3>Cintilação por dia — horas operadas (empilhado)</h3>
+          <div class="pdesc">Evolução diária da exposição por faixa de severidade.</div>
+          <div class="chartbox xl"><canvas id="cSciDay"></canvas></div>
+        </div>
       </div>
     </div>
 
-    <div class="row">
-      <div class="panel">
-        <h3>Exposição ao risco <span class="badge" style="background:var(--red)">horas críticas</span></h3>
-        <div class="pdesc">Horas operadas sob cintilação Moderada e Forte, por hora do dia.</div>
-        <div class="chartbox lg"><canvas id="cRisk"></canvas></div>
+    <!-- ══════════════ ABA: HORAS ══════════════ -->
+    <div class="tab-pane" id="pane-horas">
+      <div class="tabtitle"><span class="ic">⏱️</span>Análise de Horas</div>
+      <div class="row">
+        <div class="panel">
+          <h3>Horas operacionais diárias</h3>
+          <div class="pdesc">Barras empilhadas por faixa de cintilação, ordenadas por data.</div>
+          <div class="chartbox xl"><canvas id="cHorasDay"></canvas></div>
+        </div>
+      </div>
+      <div class="row r2">
+        <div class="panel">
+          <h3>Acúmulo de horas ao longo do período</h3>
+          <div class="pdesc">Linha cumulativa de horas operadas.</div>
+          <div class="chartbox"><canvas id="cHorasCum"></canvas></div>
+        </div>
+        <div class="panel">
+          <h3>Horas por dia da semana</h3>
+          <div class="pdesc">Padrão semanal de operação (DOM=0, SAB=6).</div>
+          <div class="chartbox"><canvas id="cHorasDow"></canvas></div>
+        </div>
       </div>
     </div>
-  </div>
-</div>
+
+    <!-- ══════════════ ABA: RISCO ══════════════ -->
+    <div class="tab-pane" id="pane-risco">
+      <div class="tabtitle"><span class="ic">⚠️</span>Mapa de Risco</div>
+      <div class="kpirow kpirow4" id="kpirowRisco"></div>
+      <div class="row r2">
+        <div class="panel">
+          <h3>Exposição por hora do dia <span class="badge" style="background:var(--red)">Mod + Forte</span></h3>
+          <div class="pdesc">Distribuição horária das horas críticas.</div>
+          <div class="chartbox xl"><canvas id="cRiscoBar"></canvas></div>
+        </div>
+        <div class="panel">
+          <h3>Proporção de risco por hora</h3>
+          <div class="pdesc">% das horas operadas nessa faixa que foram Moderada ou Forte.</div>
+          <div class="chartbox xl"><canvas id="cRiscoPct"></canvas></div>
+        </div>
+      </div>
+      <div class="row">
+        <div class="panel">
+          <h3>Top 10 — dias de maior exposição ao risco</h3>
+          <div class="pdesc">Dias com mais horas sob Moderada ou Forte.</div>
+          <div id="riscoTopTable"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ══════════════ ABA: FROTA ══════════════ -->
+    <div class="tab-pane" id="pane-frota">
+      <div class="tabtitle"><span class="ic">🚜</span>Frota</div>
+      <div class="panel">
+        <div class="placeholder">
+          <div class="big">🚜</div>
+          <p>Dados de frota não estão disponíveis nos arquivos RTK e Cintilação importados.<br><br>
+          Para habilitar esta aba, importe um arquivo com colunas de identificação de máquina/equipamento.</p>
+        </div>
+      </div>
+    </div>
+
+  </div><!-- /main -->
+</div><!-- /app -->
 
 <script>
+/* ── constantes ── */
 const ORDER=['Sem cintilacao','Fraca','Moderada','Forte'];
 const COLOR={'Sem cintilacao':'#52a447','Fraca':'#e6a52e','Moderada':'#e8842c','Forte':'#d9534f'};
 const LABEL={'Sem cintilacao':'Sem cintilação','Fraca':'Fraca','Moderada':'Moderada','Forte':'Forte'};
+const DOW=['Dom','Seg','Ter','Qua','Qui','Sex','Sáb'];
 
-let rtkRows=null, sciMap=null, charts={}, usingDemo=true;
+/* ── estado global ── */
+let rtkRows=null, sciMap=null, usingDemo=true, activeTab='geral';
+const charts={};      // id → Chart instance
+let lastAgg=null;     // última agregação calculada
 
-/* ---------- demo data ---------- */
+/* ── navegação ── */
+document.querySelectorAll('.rail .item[data-tab]').forEach(el=>{
+  el.addEventListener('click',()=>{
+    document.querySelectorAll('.rail .item').forEach(i=>i.classList.remove('on'));
+    el.classList.add('on');
+    activeTab=el.dataset.tab;
+    document.querySelectorAll('.tab-pane').forEach(p=>p.classList.remove('active'));
+    document.getElementById('pane-'+activeTab).classList.add('active');
+    if(lastAgg) renderTab(activeTab,lastAgg);
+  });
+});
+
+/* ── export PDF ── */
+function exportPDF(){
+  const ini=document.getElementById('dtIni').value||'—';
+  const fim=document.getElementById('dtFim').value||'—';
+  document.getElementById('printHeader').textContent=
+    `Performance Operacional × Cintilação Ionosférica  |  Período: ${ini} a ${fim}  |  Gerado em: ${new Date().toLocaleDateString('pt-BR')}`;
+  window.print();
+}
+
+/* ── demo data ── */
 function makeDemo(){
   const rows=[]; const base=new Date(Date.UTC(2026,0,1,0,0,0));
   const map=new Map();
@@ -174,13 +343,13 @@ function makeDemo(){
     for(let slot=0;slot<48;slot++){
       const h=Math.floor(slot/2), bb=slot%2?'30':'00';
       let esc='Sem cintilacao';
-      if(h>=23||h<=4){ const r=Math.random(); esc=r<.3?'Forte':r<.6?'Moderada':'Fraca'; }
-      else if(h>=21||h<=6){ esc=Math.random()<.4?'Fraca':'Sem cintilacao'; }
+      if(h>=23||h<=4){const r=Math.random();esc=r<.3?'Forte':r<.6?'Moderada':'Fraca';}
+      else if(h>=21||h<=6){esc=Math.random()<.4?'Fraca':'Sem cintilacao';}
       const dd=String(d+1).padStart(2,'0');
       map.set(`2026-01-${dd} ${String(h).padStart(2,'0')}:${bb}`,esc);
-      const intensidade=(h>=6&&h<=20)?0.9:0.5;
-      if(Math.random()<intensidade){
-        const dt=new Date(base); dt.setUTCDate(d+1); dt.setUTCHours(h); dt.setUTCMinutes(bb==='30'?40:10);
+      const int2=(h>=6&&h<=20)?0.9:0.5;
+      if(Math.random()<int2){
+        const dt=new Date(base);dt.setUTCDate(d+1);dt.setUTCHours(h);dt.setUTCMinutes(bb==='30'?40:10);
         rows.push({dt,horas:+(0.2+Math.random()*0.5).toFixed(2)});
       }
     }
@@ -189,33 +358,27 @@ function makeDemo(){
   return {rows,map};
 }
 
-/* ---------- helpers ---------- */
+/* ── helpers de parsing ── */
 function parseNum(s){if(s==null)return NaN;s=String(s).trim();if(s==='')return NaN;
   if(s.includes(',')&&s.includes('.'))s=s.replace(/\./g,'').replace(',','.');
-  else if(s.includes(','))s=s.replace(',','.');const n=parseFloat(s);return isNaN(n)?NaN:n;}
-
+  else if(s.includes(','))s=s.replace(',','.');return parseFloat(s);}
 function parseDateUTC(s){if(!s)return null;s=s.trim();let m;
   m=s.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})[ T]+(\d{1,2}):(\d{2})(?::(\d{2}))?/);
   if(m)return new Date(Date.UTC(+m[3],+m[2]-1,+m[1],+m[4],+m[5],+(m[6]||0)));
   m=s.match(/^(\d{4})-(\d{1,2})-(\d{1,2})[ T]+(\d{1,2}):(\d{2})(?::(\d{2}))?/);
   if(m)return new Date(Date.UTC(+m[1],+m[2]-1,+m[3],+m[4],+m[5],+(m[6]||0)));return null;}
-
 function blockKey(dt){const y=dt.getUTCFullYear(),mo=String(dt.getUTCMonth()+1).padStart(2,'0'),
   d=String(dt.getUTCDate()).padStart(2,'0'),h=String(dt.getUTCHours()).padStart(2,'0'),
   bb=dt.getUTCMinutes()<30?'00':'30';return `${y}-${mo}-${d} ${h}:${bb}`;}
-
+function dateKey(dt){const y=dt.getUTCFullYear(),mo=String(dt.getUTCMonth()+1).padStart(2,'0'),
+  d=String(dt.getUTCDate()).padStart(2,'0');return `${y}-${mo}-${d}`;}
 function detectSep(l){return l.includes(';')?';':l.includes('\t')?'\t':',';}
-
-/* normaliza data DD/MM/YYYY → YYYY-MM-DD (deixa YYYY-MM-DD inalterado) */
 function normDate(s){
   let m=s.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
   if(m)return `${m[3]}-${m[2].padStart(2,'0')}-${m[1].padStart(2,'0')}`;
   m=s.match(/^(\d{4})-(\d{1,2})-(\d{1,2})$/);
   if(m)return `${m[1]}-${m[2].padStart(2,'0')}-${m[3].padStart(2,'0')}`;
-  return s; // devolve como está se não reconhecer
-}
-
-/* normaliza nome da escala, tolerando acentos e capitalização variada */
+  return s;}
 function normEscala(s){
   if(!s)return null;
   const u=s.trim().toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g,'');
@@ -223,16 +386,16 @@ function normEscala(s){
   if(u==='1'||u==='fraca'||u==='weak'||u==='low')return 'Fraca';
   if(u==='2'||u==='moderada'||u==='moderate'||u==='med')return 'Moderada';
   if(u==='3'||u==='forte'||u==='strong'||u==='high')return 'Forte';
-  return null;
-}
+  return null;}
 
+/* ── parsers ── */
 function parseRtk(text){
   const lines=text.split(/\r?\n/).filter(l=>l.trim()!=='');
   if(lines.length<2)throw new Error('vazio');
   const sep=detectSep(lines[0]);const H=lines[0].split(sep).map(h=>h.trim().toUpperCase());
   const iE=H.findIndex(h=>h==='ESTADO'),iU=H.findIndex(h=>h.includes('DATA/HORA UTC')),
     iH=H.findIndex(h=>h==='HRS OPERACIONAIS');
-  if(iE<0||iU<0||iH<0)throw new Error('colunas não encontradas: precisa de ESTADO, DATA/HORA UTC, HRS OPERACIONAIS');
+  if(iE<0||iU<0||iH<0)throw new Error('Colunas não encontradas.\nEsperado: ESTADO, DATA/HORA UTC, HRS OPERACIONAIS');
   const rows=[];let totalE=0,semData=0;
   for(let i=1;i<lines.length;i++){const c=lines[i].split(sep);
     if(c.length<=Math.max(iE,iU,iH))continue;
@@ -241,186 +404,345 @@ function parseRtk(text){
     if(!dt||isNaN(horas)){semData++;continue;}rows.push({dt,horas});}
   rows._meta={totalE,semData};return rows;
 }
-
 function parseSci(text){
   const lines=text.split(/\r?\n/).filter(l=>l.trim()!=='');
   if(lines.length<2)throw new Error('arquivo vazio');
   const sep=detectSep(lines[0]);
-
-  // detecta se primeira linha é cabeçalho
-  const start=lines[0].toUpperCase().replace(/[̀-ͯ]/g,'').includes('DAT')?1:0;
-
-  // mostra primeiras linhas no debug para diagnóstico
+  const start=lines[0].toUpperCase().normalize('NFD').replace(/[̀-ͯ]/g,'').includes('DAT')?1:0;
   const preview=lines.slice(0,Math.min(4,lines.length)).join('\n');
-
-  const map=new Map();
-  let parsed=0, skipped=0, badEscala=new Set();
-
+  const map=new Map();let parsed=0,skipped=0;const badEscala=new Set();
   for(let i=start;i<lines.length;i++){
-    const c=lines[i].split(sep);
-    if(c.length<3)continue;
-
-    const datePart=c[0].trim();
-    const horaPart=c[1].trim();
-
-    // data normalizada para YYYY-MM-DD
-    const dataKey=normDate(datePart);
-
-    // blocos de 30 min: minutos < 30 → '00', >= 30 → '30'
-    const timeParts=horaPart.split(':');
-    if(timeParts.length<2)continue;
+    const c=lines[i].split(sep);if(c.length<3)continue;
+    const dataKey=normDate(c[0].trim());
+    const timeParts=c[1].trim().split(':');if(timeParts.length<2)continue;
     const hh=timeParts[0].padStart(2,'0');
     const bb=parseInt(timeParts[1],10)>=30?'30':'00';
-
-    // tenta col 3 primeiro (índice 3), depois col 2, depois col 4
     let escala=null;
-    for(const ci of [3,2,4]){
-      if(c[ci]!==undefined){escala=normEscala(c[ci]);if(escala)break;}
-    }
-
-    if(!escala){
-      if(c[3]!==undefined)badEscala.add(c[3].trim());
-      skipped++;
-      continue;
-    }
-
-    map.set(`${dataKey} ${hh}:${bb}`,escala);
-    parsed++;
+    for(const ci of [3,2,4]){if(c[ci]!==undefined){escala=normEscala(c[ci]);if(escala)break;}}
+    if(!escala){if(c[3]!==undefined)badEscala.add(c[3].trim());skipped++;continue;}
+    map.set(`${dataKey} ${hh}:${bb}`,escala);parsed++;
   }
-
-  // diagnóstico
   const dbg=document.getElementById('debugBox');
-  const info=[
+  dbg.textContent=[
     `Cintilação: ${parsed} entradas lidas, ${skipped} linhas puladas`,
-    `Separador: "${sep==='\\t'?'TAB':sep}"  |  Cabeçalho: ${start?'sim':'não'}`,
-    `Amostra de chaves geradas: ${[...map.keys()].slice(0,3).join(', ')}`,
-    badEscala.size?`Valores de escala não reconhecidos: ${[...badEscala].slice(0,5).join(', ')}`:'',
-    `Prévia do arquivo:\n${preview}`
-  ].filter(Boolean).join('\n');
-  dbg.textContent=info; dbg.style.display='block';
-
-  if(map.size===0)throw new Error(
-    `Nenhuma entrada válida encontrada.\n`+
-    `Verifique se o arquivo tem: data (col 1), hora (col 2), ..., escala (col 3 ou 4).\n`+
-    `Valores esperados para escala: Sem cintilação, Fraca, Moderada, Forte (ou 0/1/2/3).\n`+
+    `Separador: "${sep==='\t'?'TAB':sep}"  |  Cabeçalho: ${start?'sim':'não'}`,
+    `Amostra de chaves: ${[...map.keys()].slice(0,3).join(', ')}`,
+    badEscala.size?`Escalas não reconhecidas: ${[...badEscala].slice(0,5).join(', ')}`:'',
     `Prévia:\n${preview}`
-  );
+  ].filter(Boolean).join('\n');
+  dbg.style.display='block';
+  if(map.size===0)throw new Error(`Nenhuma entrada válida.\nVerifique: data (col1), hora (col2), escala (col3 ou 4).\nEscalas aceitas: Sem cintilação, Fraca, Moderada, Forte (ou 0/1/2/3)\n\nPrévia:\n${preview}`);
   return map;
 }
 
-/* ---------- file load ---------- */
-function load(input,kind){const f=input.files[0];if(!f)return;const r=new FileReader();
+/* ── file load ── */
+function load(input,kind){
+  const f=input.files[0];if(!f)return;
+  const r=new FileReader();
   r.onload=e=>{try{
     if(kind==='rtk'){
       rtkRows=parseRtk(e.target.result);
       document.getElementById('btnRtk').classList.add('done');
       document.getElementById('btnRtk').firstChild.textContent='RTK ✓ ';
-    } else {
+    }else{
       sciMap=parseSci(e.target.result);
       document.getElementById('btnSci').classList.add('done');
       document.getElementById('btnSci').firstChild.textContent='Cintilação ✓ ';
     }
-    if(rtkRows&&sciMap){
-      usingDemo=false;
-      document.getElementById('demoFlag').textContent='';
-      // fecha debug se tudo casou bem
-      setTimeout(()=>{if(document.getElementById('debugBox').textContent.includes('0 reg'))
-        document.getElementById('debugBox').style.display='none';},2000);
-    }
+    if(rtkRows&&sciMap){usingDemo=false;document.getElementById('demoFlag').textContent='';}
     render();
   }catch(err){alert('Erro ao ler '+(kind==='rtk'?'RTK':'cintilação')+':\n'+err.message);}};
-  r.readAsText(f,'utf-8');}
+  r.readAsText(f,'utf-8');
+}
 document.getElementById('fileRtk').addEventListener('change',function(){load(this,'rtk');});
 document.getElementById('fileSci').addEventListener('change',function(){load(this,'sci');});
 document.getElementById('dtIni').addEventListener('change',render);
 document.getElementById('dtFim').addEventListener('change',render);
 
-/* ---------- aggregate + render ---------- */
-function render(){
-  let rows=rtkRows, map=sciMap;
-  if(usingDemo){const d=makeDemo();rows=d.rows;map=d.map;}
-
+/* ── agregação central ── */
+function aggregate(rows,map){
   const ini=document.getElementById('dtIni').value, fim=document.getElementById('dtFim').value;
   let rf=rows;
   if(ini){const di=new Date(ini+'T00:00:00Z');rf=rf.filter(r=>r.dt>=di);}
   if(fim){const df=new Date(fim+'T23:59:59Z');rf=rf.filter(r=>r.dt<=df);}
 
   const horas={'Sem cintilacao':0,'Fraca':0,'Moderada':0,'Forte':0};
-  const cnt={'Sem cintilacao':0,'Fraca':0,'Moderada':0,'Forte':0};
   const porHora={};for(let h=0;h<24;h++)porHora[h]={'Sem cintilacao':0,'Fraca':0,'Moderada':0,'Forte':0};
+  const porDia={};   // 'YYYY-MM-DD' → {Sem cintilacao,Fraca,Moderada,Forte}
+  const porDow=[0,1,2,3,4,5,6].map(()=>({'Sem cintilacao':0,'Fraca':0,'Moderada':0,'Forte':0}));
+  const porDiaRtk={};// 'YYYY-MM-DD' → total horas (RTK, independente de escala)
   let total=0,nMatch=0;
-  for(const r of rf){const e=map.get(blockKey(r.dt));if(!e||!(e in horas))continue;
-    horas[e]+=r.horas;cnt[e]++;porHora[r.dt.getUTCHours()][e]+=r.horas;total+=r.horas;nMatch++;}
 
-  // atualiza debug com info de cruzamento quando dados reais estão carregados
+  for(const r of rf){
+    const k=dateKey(r.dt);
+    if(!porDiaRtk[k])porDiaRtk[k]=0;
+    porDiaRtk[k]+=r.horas;
+
+    const e=map.get(blockKey(r.dt));
+    if(!e||!(e in horas))continue;
+    horas[e]+=r.horas;
+    porHora[r.dt.getUTCHours()][e]+=r.horas;
+    if(!porDia[k])porDia[k]={'Sem cintilacao':0,'Fraca':0,'Moderada':0,'Forte':0};
+    porDia[k][e]+=r.horas;
+    porDow[r.dt.getUTCDay()][e]+=r.horas;
+    total+=r.horas;nMatch++;
+  }
+
   if(!usingDemo){
     const dbg=document.getElementById('debugBox');
-    const prev=dbg.textContent;
-    const sampleKey=rf.length?blockKey(rf[0].dt):'—';
-    dbg.textContent=prev+`\n\nCruzamento: ${nMatch} de ${rf.length} registros RTK casaram com cintilação`+
-      `\nExemplo de chave RTK: "${sampleKey}"`;
+    dbg.textContent+= `\n\nCruzamento: ${nMatch}/${rf.length} registros RTK casaram | Chave ex.: "${rf.length?blockKey(rf[0].dt):'—'}"`;
     dbg.style.display='block';
   }
 
-  const forte=horas['Forte'],degr=horas['Moderada']+horas['Forte'];
-  const pctForte=total?forte/total*100:0, pctDegr=total?degr/total*100:0;
+  return {horas,porHora,porDia,porDow,porDiaRtk,total,nMatch,rf,
+    forte:horas['Forte'], degr:horas['Moderada']+horas['Forte'],
+    meta:rows._meta||{totalE:rf.length,semData:0}};
+}
+
+/* ── render principal ── */
+function render(){
+  let rows=rtkRows, map=sciMap;
+  if(usingDemo){const d=makeDemo();rows=d.rows;map=d.map;}
+  lastAgg=aggregate(rows,map);
+  renderTab(activeTab,lastAgg);
+}
+
+/* ── render por aba ── */
+function renderTab(tab,a){
+  if(tab==='geral')     renderGeral(a);
+  else if(tab==='rtk')  renderRtk(a);
+  else if(tab==='cintilacao') renderCintilacao(a);
+  else if(tab==='horas')renderHoras(a);
+  else if(tab==='risco')renderRisco(a);
+}
+
+/* helper: destrói chart e recria no canvas */
+function mkChart(id,cfg){
+  if(charts[id])charts[id].destroy();
+  const el=document.getElementById(id);
+  if(!el)return;
+  charts[id]=new Chart(el,cfg);
+  return charts[id];
+}
+
+function chartDefaults(){
+  Chart.defaults.color='#7c8a80';
+  Chart.defaults.font.family="'Segoe UI',sans-serif";
+  Chart.defaults.borderColor='#e2e6e2';
+  Chart.defaults.font.size=11;
+}
+
+/* ══ VISÃO GERAL ══ */
+function renderGeral(a){
+  chartDefaults();
+  const {horas,porHora,total,nMatch}=a;
   const pctSem=total?horas['Sem cintilacao']/total*100:0;
+  const pctForte=total?a.forte/total*100:0;
+  const pctDegr=total?a.degr/total*100:0;
 
   const kpis=[
     {h:'Horas Operacionais',big:total.toFixed(1)+'h',sec:nMatch+' reg.',meta:'operações casadas',pct:100,col:'var(--green)',spark:'📈'},
     {h:'Sem Cintilação',big:pctSem.toFixed(1)+'%',sec:horas['Sem cintilacao'].toFixed(1)+'h',meta:'tempo limpo',pct:pctSem,col:'var(--sem)',spark:'📈'},
     {h:'Cintilação Fraca',big:(total?horas['Fraca']/total*100:0).toFixed(1)+'%',sec:horas['Fraca'].toFixed(1)+'h',meta:'baixo impacto',pct:total?horas['Fraca']/total*100:0,col:'var(--fraca)',spark:'〰️'},
     {h:'Moderada',big:(total?horas['Moderada']/total*100:0).toFixed(1)+'%',sec:horas['Moderada'].toFixed(1)+'h',meta:'atenção',pct:total?horas['Moderada']/total*100:0,col:'var(--orange)',spark:'〰️'},
-    {h:'Forte',big:pctForte.toFixed(1)+'%',sec:forte.toFixed(1)+'h',meta:'risco de erro RTK',pct:pctForte,col:'var(--red)',spark:'⚠️'},
-    {h:'Impacto (Mod+Forte)',big:pctDegr.toFixed(1)+'%',sec:degr.toFixed(1)+'h',meta:'exposição total',pct:pctDegr,col:'var(--red)',spark:'⚠️'},
+    {h:'Forte',big:pctForte.toFixed(1)+'%',sec:a.forte.toFixed(1)+'h',meta:'risco de erro RTK',pct:pctForte,col:'var(--red)',spark:'⚠️'},
+    {h:'Impacto (Mod+Forte)',big:pctDegr.toFixed(1)+'%',sec:a.degr.toFixed(1)+'h',meta:'exposição total',pct:pctDegr,col:'var(--red)',spark:'⚠️'},
   ];
   document.getElementById('kpirow').innerHTML=kpis.map(k=>`
     <div class="kpi" style="border-top-color:${k.col}">
       <div class="h">${k.h}<span class="spark">${k.spark}</span></div>
       <div class="big" style="color:${k.col}">${k.big}</div>
-      <div class="sec">${k.sec}</div>
-      <div class="meta">${k.meta}</div>
+      <div class="sec">${k.sec}</div><div class="meta">${k.meta}</div>
       <div class="barbg"><div class="barfg" style="width:${Math.min(100,k.pct)}%;background:${k.col}"></div></div>
     </div>`).join('');
 
-  drawCharts(horas,porHora);
-}
-
-function drawCharts(horas,porHora){
-  Object.values(charts).forEach(c=>c&&c.destroy());
-  Chart.defaults.color='#7c8a80';Chart.defaults.font.family="'Segoe UI',sans-serif";
-  Chart.defaults.borderColor='#e2e6e2';Chart.defaults.font.size=11;
-
-  charts.scale=new Chart(document.getElementById('cScale'),{type:'bar',
+  mkChart('cScale',{type:'bar',
     data:{labels:ORDER.map(e=>LABEL[e]),datasets:[{data:ORDER.map(e=>+horas[e].toFixed(2)),
       backgroundColor:ORDER.map(e=>COLOR[e]),borderRadius:5,maxBarThickness:70}]},
     options:{plugins:{legend:{display:false}},scales:{y:{beginAtZero:true,title:{display:true,text:'horas'}},x:{grid:{display:false}}}}});
 
-  charts.donut=new Chart(document.getElementById('cDonut'),{type:'doughnut',
+  mkChart('cDonut',{type:'doughnut',
     data:{labels:ORDER.map(e=>LABEL[e]),datasets:[{data:ORDER.map(e=>+horas[e].toFixed(2)),
       backgroundColor:ORDER.map(e=>COLOR[e]),borderColor:'#fff',borderWidth:2}]},
     options:{cutout:'60%',plugins:{legend:{position:'right',labels:{padding:12,boxWidth:11}}}}});
 
-  charts.hour=new Chart(document.getElementById('cHour'),{type:'bar',
-    data:{labels:[...Array(24).keys()].map(h=>String(h).padStart(2,'0')+'h'),
-      datasets:ORDER.map(e=>({label:LABEL[e],data:[...Array(24).keys()].map(h=>+porHora[h][e].toFixed(2)),
-        backgroundColor:COLOR[e]}))},
+  const hrs24=[...Array(24).keys()];
+  mkChart('cHour',{type:'bar',
+    data:{labels:hrs24.map(h=>String(h).padStart(2,'0')+'h'),
+      datasets:ORDER.map(e=>({label:LABEL[e],data:hrs24.map(h=>+porHora[h][e].toFixed(2)),backgroundColor:COLOR[e]}))},
     options:{plugins:{legend:{position:'top',labels:{boxWidth:11,padding:10}}},
       scales:{x:{stacked:true,grid:{display:false}},y:{stacked:true,beginAtZero:true,title:{display:true,text:'horas'}}}}});
 
-  const horasArr=[...Array(24).keys()];
-  charts.risk=new Chart(document.getElementById('cRisk'),{type:'bar',
-    data:{labels:horasArr.map(h=>String(h).padStart(2,'0')+'h'),
+  mkChart('cRisk',{type:'bar',
+    data:{labels:hrs24.map(h=>String(h).padStart(2,'0')+'h'),
       datasets:[
-        {label:'Moderada',data:horasArr.map(h=>+porHora[h]['Moderada'].toFixed(2)),backgroundColor:COLOR['Moderada']},
-        {label:'Forte',data:horasArr.map(h=>+porHora[h]['Forte'].toFixed(2)),backgroundColor:COLOR['Forte']}
+        {label:'Moderada',data:hrs24.map(h=>+porHora[h]['Moderada'].toFixed(2)),backgroundColor:COLOR['Moderada']},
+        {label:'Forte',data:hrs24.map(h=>+porHora[h]['Forte'].toFixed(2)),backgroundColor:COLOR['Forte']}
       ]},
     options:{indexAxis:'y',plugins:{legend:{position:'top',labels:{boxWidth:11,padding:10}}},
       scales:{x:{stacked:true,beginAtZero:true,title:{display:true,text:'horas'}},y:{stacked:true,grid:{display:false}}}}});
 }
 
+/* ══ RTK ══ */
+function renderRtk(a){
+  chartDefaults();
+  const {porDiaRtk,porHora,total,nMatch,rf,meta}=a;
+  const dias=Object.keys(porDiaRtk).sort();
+  const totalRtk=Object.values(porDiaRtk).reduce((s,v)=>s+v,0);
+  const media=dias.length?totalRtk/dias.length:0;
+
+  document.getElementById('kpirowRtk').innerHTML=[
+    {h:'Registros estado E',big:meta.totalE,sec:'total',meta:'linhas com estado E',col:'var(--green)'},
+    {h:'Horas Totais',big:totalRtk.toFixed(1)+'h',sec:dias.length+' dias',meta:'período operado',col:'var(--green)'},
+    {h:'Média por Dia',big:media.toFixed(2)+'h',sec:'',meta:'horas/dia operado',col:'var(--amber)'},
+    {h:'Sem Correspondência',big:meta.semData,sec:'',meta:'registros sem data válida',col:'var(--faint)'},
+  ].map(k=>`<div class="kpi" style="border-top-color:${k.col}">
+    <div class="h">${k.h}</div>
+    <div class="big" style="color:${k.col}">${k.big}</div>
+    <div class="sec">${k.sec}</div><div class="meta">${k.meta}</div>
+  </div>`).join('');
+
+  mkChart('cRtkDay',{type:'bar',
+    data:{labels:dias.map(d=>d.slice(5)),
+      datasets:[{label:'Horas',data:dias.map(d=>+porDiaRtk[d].toFixed(2)),
+        backgroundColor:'#52a447',borderRadius:3}]},
+    options:{plugins:{legend:{display:false}},
+      scales:{x:{grid:{display:false},ticks:{maxRotation:60,font:{size:9}}},
+              y:{beginAtZero:true,title:{display:true,text:'horas'}}}}});
+
+  const hrs24=[...Array(24).keys()];
+  const totHrRtk=hrs24.map(h=>ORDER.reduce((s,e)=>s+a.porHora[h][e],0));
+  mkChart('cRtkHour',{type:'bar',
+    data:{labels:hrs24.map(h=>String(h).padStart(2,'0')+'h'),
+      datasets:[{label:'Horas operadas',data:totHrRtk.map(v=>+v.toFixed(2)),
+        backgroundColor:'#52a447',borderRadius:3}]},
+    options:{plugins:{legend:{display:false}},
+      scales:{x:{grid:{display:false}},y:{beginAtZero:true,title:{display:true,text:'horas'}}}}});
+
+  const top10=dias.map(d=>({d,v:porDiaRtk[d]})).sort((a,b)=>b.v-a.v).slice(0,10);
+  document.getElementById('rtkTopTable').innerHTML=
+    `<table class="tbl"><thead><tr><th>#</th><th>Data</th><th>Horas Operadas</th><th>% do Total</th></tr></thead><tbody>`+
+    top10.map((r,i)=>`<tr><td>${i+1}</td><td>${r.d}</td><td>${r.v.toFixed(2)}h</td><td>${totalRtk?(r.v/totalRtk*100).toFixed(1):0}%</td></tr>`).join('')+
+    `</tbody></table>`;
+}
+
+/* ══ CINTILAÇÃO ══ */
+function renderCintilacao(a){
+  chartDefaults();
+  const {horas,porHora,porDia}=a;
+  const hrs24=[...Array(24).keys()];
+  const dias=Object.keys(porDia).sort();
+
+  mkChart('cSciDonut',{type:'doughnut',
+    data:{labels:ORDER.map(e=>LABEL[e]),datasets:[{data:ORDER.map(e=>+horas[e].toFixed(2)),
+      backgroundColor:ORDER.map(e=>COLOR[e]),borderColor:'#fff',borderWidth:2}]},
+    options:{cutout:'55%',plugins:{legend:{position:'bottom',labels:{padding:14,boxWidth:12}}}}});
+
+  mkChart('cSciHour',{type:'bar',
+    data:{labels:hrs24.map(h=>String(h).padStart(2,'0')+'h'),
+      datasets:ORDER.map(e=>({label:LABEL[e],data:hrs24.map(h=>+porHora[h][e].toFixed(2)),backgroundColor:COLOR[e]}))},
+    options:{plugins:{legend:{position:'top',labels:{boxWidth:11,padding:10}}},
+      scales:{x:{stacked:true,grid:{display:false}},y:{stacked:true,beginAtZero:true,title:{display:true,text:'horas'}}}}});
+
+  mkChart('cSciDay',{type:'bar',
+    data:{labels:dias.map(d=>d.slice(5)),
+      datasets:ORDER.map(e=>({label:LABEL[e],data:dias.map(d=>+(porDia[d]?porDia[d][e]:0).toFixed(2)),backgroundColor:COLOR[e]}))},
+    options:{plugins:{legend:{position:'top',labels:{boxWidth:11,padding:10}}},
+      scales:{x:{stacked:true,grid:{display:false},ticks:{maxRotation:60,font:{size:9}}},
+              y:{stacked:true,beginAtZero:true,title:{display:true,text:'horas'}}}}});
+}
+
+/* ══ HORAS ══ */
+function renderHoras(a){
+  chartDefaults();
+  const {porDia,porDow}=a;
+  const dias=Object.keys(porDia).sort();
+
+  mkChart('cHorasDay',{type:'bar',
+    data:{labels:dias.map(d=>d.slice(5)),
+      datasets:ORDER.map(e=>({label:LABEL[e],data:dias.map(d=>+(porDia[d]?porDia[d][e]:0).toFixed(2)),backgroundColor:COLOR[e]}))},
+    options:{plugins:{legend:{position:'top',labels:{boxWidth:11,padding:10}}},
+      scales:{x:{stacked:true,grid:{display:false},ticks:{maxRotation:60,font:{size:9}}},
+              y:{stacked:true,beginAtZero:true,title:{display:true,text:'horas'}}}}});
+
+  // cumulativo
+  let cum=0;
+  const cumData=dias.map(d=>{cum+=ORDER.reduce((s,e)=>s+(porDia[d]?porDia[d][e]:0),0);return +cum.toFixed(2);});
+  mkChart('cHorasCum',{type:'line',
+    data:{labels:dias.map(d=>d.slice(5)),datasets:[{label:'Horas acumuladas',data:cumData,
+      borderColor:'#52a447',backgroundColor:'rgba(82,164,71,.12)',fill:true,tension:.3,pointRadius:2}]},
+    options:{plugins:{legend:{display:false}},
+      scales:{x:{grid:{display:false},ticks:{maxRotation:60,font:{size:9}}},
+              y:{beginAtZero:true,title:{display:true,text:'horas'}}}}});
+
+  const dowTot=porDow.map(d=>+ORDER.reduce((s,e)=>s+d[e],0).toFixed(2));
+  mkChart('cHorasDow',{type:'bar',
+    data:{labels:DOW,datasets:[{label:'Horas',data:dowTot,
+      backgroundColor:DOW.map((_,i)=>i===0||i===6?'#e8842c':'#52a447'),borderRadius:4}]},
+    options:{plugins:{legend:{display:false}},
+      scales:{x:{grid:{display:false}},y:{beginAtZero:true,title:{display:true,text:'horas'}}}}});
+}
+
+/* ══ RISCO ══ */
+function renderRisco(a){
+  chartDefaults();
+  const {horas,porHora,porDia,total,degr,forte}=a;
+  const hrs24=[...Array(24).keys()];
+
+  const pctDegr=total?degr/total*100:0;
+  const pctForte=total?forte/total*100:0;
+  const horasRisco=horas['Moderada']+horas['Forte'];
+  const diasRisco=Object.entries(a.porDia).filter(([,v])=>v['Moderada']+v['Forte']>0).length;
+
+  document.getElementById('kpirowRisco').innerHTML=[
+    {h:'Horas Moderada+Forte',big:degr.toFixed(1)+'h',meta:'total de exposição',col:'var(--red)'},
+    {h:'% Exposição',big:pctDegr.toFixed(1)+'%',meta:'do tempo operado',col:'var(--red)'},
+    {h:'Horas Forte',big:forte.toFixed(1)+'h',meta:'máximo risco',col:'var(--forte)'},
+    {h:'Dias com Risco',big:diasRisco,meta:'dias com exp. crítica',col:'var(--orange)'},
+  ].map(k=>`<div class="kpi" style="border-top-color:${k.col}">
+    <div class="h">${k.h}</div>
+    <div class="big" style="color:${k.col}">${k.big}</div>
+    <div class="meta">${k.meta}</div>
+  </div>`).join('');
+
+  mkChart('cRiscoBar',{type:'bar',
+    data:{labels:hrs24.map(h=>String(h).padStart(2,'0')+'h'),
+      datasets:[
+        {label:'Moderada',data:hrs24.map(h=>+porHora[h]['Moderada'].toFixed(2)),backgroundColor:COLOR['Moderada']},
+        {label:'Forte',data:hrs24.map(h=>+porHora[h]['Forte'].toFixed(2)),backgroundColor:COLOR['Forte']}
+      ]},
+    options:{indexAxis:'y',plugins:{legend:{position:'top',labels:{boxWidth:11,padding:10}}},
+      scales:{x:{stacked:true,beginAtZero:true,title:{display:true,text:'horas'}},y:{stacked:true,grid:{display:false}}}}});
+
+  // % de risco por hora
+  const pctRiscoHr=hrs24.map(h=>{
+    const tot=ORDER.reduce((s,e)=>s+porHora[h][e],0);
+    return tot?(porHora[h]['Moderada']+porHora[h]['Forte'])/tot*100:0;
+  });
+  mkChart('cRiscoPct',{type:'bar',
+    data:{labels:hrs24.map(h=>String(h).padStart(2,'0')+'h'),
+      datasets:[{label:'% risco',data:pctRiscoHr.map(v=>+v.toFixed(1)),
+        backgroundColor:pctRiscoHr.map(v=>v>=50?COLOR['Forte']:v>=25?COLOR['Moderada']:COLOR['Fraca']),
+        borderRadius:3}]},
+    options:{plugins:{legend:{display:false}},
+      scales:{x:{grid:{display:false}},y:{beginAtZero:true,max:100,title:{display:true,text:'%'}}}}});
+
+  const top10dias=Object.entries(porDia)
+    .map(([d,v])=>({d,risco:v['Moderada']+v['Forte'],forte:v['Forte']}))
+    .filter(r=>r.risco>0).sort((a,b)=>b.risco-a.risco).slice(0,10);
+  document.getElementById('riscoTopTable').innerHTML=
+    `<table class="tbl"><thead><tr><th>#</th><th>Data</th><th>Horas Moderada</th><th>Horas Forte</th><th>Total Risco</th></tr></thead><tbody>`+
+    top10dias.map((r,i)=>`<tr><td>${i+1}</td><td>${r.d}</td>
+      <td><span class="dot" style="background:${COLOR['Moderada']}"></span>${(porDia[r.d]['Moderada']).toFixed(2)}h</td>
+      <td><span class="dot" style="background:${COLOR['Forte']}"></span>${r.forte.toFixed(2)}h</td>
+      <td><b>${r.risco.toFixed(2)}h</b></td></tr>`).join('')+
+    `</tbody></table>`;
+}
+
+/* ── init ── */
 document.getElementById('dtIni').value='2026-01-01';
 document.getElementById('dtFim').value='2026-01-30';
+chartDefaults();
 render();
 </script>
 </body>
