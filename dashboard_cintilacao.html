@@ -46,6 +46,12 @@
   .pdfbtn{background:var(--card);color:var(--ink);border:1px solid var(--line);border-radius:8px;
     padding:8px 14px;font-size:12px;font-weight:600;cursor:pointer;white-space:nowrap}
   .pdfbtn:hover{background:var(--bg)}
+  .frente-wrap{display:flex;align-items:center;gap:6px;background:var(--card);
+    border:1px solid var(--line);border-radius:8px;padding:5px 10px}
+  .frente-wrap label{font-size:10px;color:var(--faint);text-transform:uppercase;letter-spacing:.05em;white-space:nowrap}
+  .frente-wrap select{border:none;font-family:var(--sans);font-size:12px;color:var(--ink);
+    background:transparent;outline:none;cursor:pointer;max-width:160px}
+  .frente-tag{font-size:9px;background:#e8842c;color:#fff;border-radius:10px;padding:1px 6px;font-weight:700;white-space:nowrap}
 
   /* ── kpi row ── */
   .kpirow{display:grid;grid-template-columns:repeat(6,1fr);gap:10px;margin-bottom:14px}
@@ -203,6 +209,11 @@
       <div class="filters">
         <button class="importbtn" id="btnRtk">Importar RTK<input type="file" id="fileRtk" accept=".txt,.csv"></button>
         <button class="importbtn" id="btnSci">Importar Cintilação<input type="file" id="fileSci" accept=".txt,.csv"></button>
+        <div class="frente-wrap">
+          <label>Frente</label>
+          <select id="selFrente"><option value="">Todas as frentes</option></select>
+          <span class="frente-tag">RISCO</span>
+        </div>
       </div>
       <div class="filters">
         <div class="daterange">
@@ -350,23 +361,23 @@
     <!-- ═══ ABA: RISCO ═══ -->
     <div class="tab-pane" id="pane-risco">
       <div class="tabtitle"><span class="ic">⚠️</span>Mapa de Risco</div>
-      <div class="kpirow kpirow4" id="kpirowRisco"></div>
+      <div class="kpirow" id="kpirowRisco"></div>
       <div class="row r2">
         <div class="panel">
-          <h3>Exposição por hora do dia <span class="badge" style="background:var(--red)">Mod + Forte</span></h3>
-          <div class="pdesc">Distribuição horária das horas críticas.</div>
+          <h3>Risco regional por hora do dia <span class="badge" style="background:var(--red)">Base cintilação</span></h3>
+          <div class="pdesc">Horas da base de cintilação (0,5h por bloco) distribuídas por faixa e hora — reflete o risco real da região, independente das operações.</div>
           <div class="chartbox xl"><canvas id="cRiscoBar"></canvas></div>
         </div>
         <div class="panel">
-          <h3>% de risco por hora do dia</h3>
-          <div class="pdesc">Proporção das horas nessa faixa horária sob Moderada ou Forte.</div>
+          <h3>Operações em risco por hora do dia <span class="badge" style="background:var(--orange)">Cruzamento</span></h3>
+          <div class="pdesc">Horas operacionais (frente selecionada) sob Moderada ou Forte — estimativa proporcional ao padrão de cintilação do dia.</div>
           <div class="chartbox xl"><canvas id="cRiscoPct"></canvas></div>
         </div>
       </div>
       <div class="row">
         <div class="panel">
-          <h3>Top 10 — dias de maior exposição ao risco</h3>
-          <div class="pdesc">Dias com mais horas sob Moderada ou Forte.</div>
+          <h3>Top 10 — dias de maior risco regional com cruzamento operacional</h3>
+          <div class="pdesc">Dias com mais horas de cintilação crítica (Mod+Forte) e respectiva exposição operacional estimada.</div>
           <div id="riscoTopTable"></div>
         </div>
       </div>
@@ -484,6 +495,7 @@ function parseRtk(text){
   const iL =H.findIndex(h=>h.includes('DATA/HORA LOCAL'));
   const iH =H.findIndex(h=>h==='HRS OPERACIONAIS');
   const iHs=H.findIndex(h=>h==='HRS OPERACIONAIS(SEC)');
+  const iT =H.findIndex(h=>h==='COD. TALHAO');
 
   if(iE<0) throw new Error('Coluna ESTADO não encontrada no arquivo RTK.');
   if(iU<0&&iL<0) throw new Error('Coluna DATA/HORA não encontrada (esperado: DATA/HORA UTC ou DATA/HORA LOCAL).');
@@ -507,7 +519,8 @@ function parseRtk(text){
     if(isNaN(horas)&&iH>=0) horas=parseNum(c[iH]);
 
     if(!dt||isNaN(horas)||horas<=0){semData++;continue;}
-    rows.push({dt, dateStr:dateKey(dt), horas});
+    const talhao=iT>=0?(c[iT]?.trim()||''):'';
+    rows.push({dt, dateStr:dateKey(dt), horas, talhao});
   }
 
   rows._meta={totalE,semData};
@@ -598,7 +611,7 @@ function makeDemo(){
       const int2=(h>=6&&h<=20)?0.9:0.5;
       if(Math.random()<int2){
         const dt=new Date(base);dt.setUTCDate(d+1);dt.setUTCHours(h);dt.setUTCMinutes(bb==='30'?40:10);
-        rows.push({dt,dateStr:dk,horas:+(0.2+Math.random()*0.5).toFixed(2)});
+        rows.push({dt,dateStr:dk,horas:+(0.2+Math.random()*0.5).toFixed(2),talhao:''});
       }
     }
   }
@@ -615,6 +628,11 @@ function load(input,kind){
       rtkRows=parseRtk(e.target.result);
       document.getElementById('btnRtk').classList.add('done');
       document.getElementById('btnRtk').firstChild.textContent='RTK ✓ ';
+      // popula select de frentes
+      const frentes=[...new Set(rtkRows.map(r=>r.talhao).filter(Boolean))].sort();
+      const sel=document.getElementById('selFrente');
+      sel.innerHTML='<option value="">Todas as frentes</option>'+
+        frentes.map(f=>`<option value="${f}">${f}</option>`).join('');
     }else{
       sciData=parseSci(e.target.result);
       document.getElementById('btnSci').classList.add('done');
@@ -629,6 +647,9 @@ document.getElementById('fileRtk').addEventListener('change',function(){load(thi
 document.getElementById('fileSci').addEventListener('change',function(){load(this,'sci');});
 document.getElementById('dtIni').addEventListener('change',render);
 document.getElementById('dtFim').addEventListener('change',render);
+document.getElementById('selFrente').addEventListener('change',()=>{
+  if(lastAgg&&activeTab==='risco')renderRisco(lastAgg);
+});
 
 /* ── agregação central (cruzamento por DIA com distribuição proporcional) ── */
 function aggregate(rows, sd){
@@ -752,6 +773,8 @@ function render(){
   if(usingDemo){const d=makeDemo();rows=d.rows;sd=d.sciData;}
   renderDateInfo(rows,sd);
   lastAgg=aggregate(rows,sd);
+  lastAgg._sd=sd;
+  lastAgg._allRows=rows;
   renderTab(activeTab,lastAgg);
 }
 
@@ -924,52 +947,145 @@ function renderHoras(a){
       scales:{x:{grid:{display:false}},y:{beginAtZero:true,title:{display:true,text:'horas'}}}}});
 }
 
+/* ── risco regional baseado na base de cintilação (0,5h por bloco de 30min) ── */
+function computeSciRisco(sd, ini, fim){
+  const porHora=Array.from({length:24},()=>({'Sem cintilacao':0,Fraca:0,Moderada:0,Forte:0}));
+  const porDia={};
+  let totalH=0,nDias=0;
+  const iniD=ini?new Date(ini+'T00:00:00Z'):null;
+  const fimD=fim?new Date(fim+'T23:59:59Z'):null;
+
+  for(const [dk,dist] of sd.dayDist){
+    const dayDt=new Date(dk+'T12:00:00Z');
+    if(iniD&&dayDt<iniD)continue;
+    if(fimD&&dayDt>fimD)continue;
+    nDias++;
+    if(!porDia[dk])porDia[dk]={'Sem cintilacao':0,Fraca:0,Moderada:0,Forte:0};
+    for(let hr=0;hr<24;hr++){
+      for(const e of ORDER){
+        const h=dist.byHour[hr][e]*0.5; // cada bloco de 30min = 0.5h
+        porHora[hr][e]+=h;
+        porDia[dk][e]+=h;
+        totalH+=h;
+      }
+    }
+  }
+
+  const degr=Object.values(porDia).reduce((s,d)=>s+(d['Moderada']||0)+(d['Forte']||0),0);
+  const forte=Object.values(porDia).reduce((s,d)=>s+(d['Forte']||0),0);
+  return{porHora,porDia,totalH,nDias,degr,forte};
+}
+
+/* ── horas operacionais filtradas por frente, cruzadas com cintilação ── */
+function computeRtkFrented(allRows, frente, sd, ini, fim){
+  const porHora=Array.from({length:24},()=>({'Sem cintilacao':0,Fraca:0,Moderada:0,Forte:0}));
+  const porDia={};
+  let total=0;
+  const iniD=ini?new Date(ini+'T00:00:00Z'):null;
+  const fimD=fim?new Date(fim+'T23:59:59Z'):null;
+
+  let rf=allRows;
+  if(iniD)rf=rf.filter(r=>r.dt>=iniD);
+  if(fimD)rf=rf.filter(r=>r.dt<=fimD);
+  if(frente)rf=rf.filter(r=>r.talhao===frente);
+
+  for(const r of rf){
+    const dk=r.dateStr;
+    const dist=sd.dayDist.get(dk);
+    if(!dist||dist.total===0)continue;
+    total+=r.horas;
+    if(!porDia[dk])porDia[dk]={'Sem cintilacao':0,Fraca:0,Moderada:0,Forte:0};
+    for(const e of ORDER){
+      const frac=dist[e]/dist.total;
+      const h=r.horas*frac;
+      porDia[dk][e]+=h;
+      for(let hr=0;hr<24;hr++){
+        const hf=dist.byHour[hr][e]/dist.total;
+        porHora[hr][e]+=r.horas*hf;
+      }
+    }
+  }
+
+  const degr=Object.values(porDia).reduce((s,d)=>s+(d['Moderada']||0)+(d['Forte']||0),0);
+  const forte=Object.values(porDia).reduce((s,d)=>s+(d['Forte']||0),0);
+  return{porHora,porDia,total,degr,forte};
+}
+
 /* ════ RISCO ════ */
 function renderRisco(a){
   cd();
-  const{horas,porHora,porDia,total,degr,forte}=a;
-  const pctDegr=total?degr/total*100:0;
-  const diasRisco=Object.entries(porDia).filter(([,v])=>v['Moderada']+v['Forte']>0).length;
+  const ini=document.getElementById('dtIni').value;
+  const fim=document.getElementById('dtFim').value;
+  const frente=document.getElementById('selFrente')?.value||'';
+
+  const sd=a._sd;
+  const allRows=a._allRows;
+
+  const sci=computeSciRisco(sd,ini,fim);
+  const rtk=computeRtkFrented(allRows,frente,sd,ini,fim);
+
+  const pctDegrSci=sci.totalH?sci.degr/sci.totalH*100:0;
+  const pctDegrRtk=rtk.total?rtk.degr/rtk.total*100:0;
+  const diasRisco=Object.values(sci.porDia).filter(d=>d['Moderada']+d['Forte']>0).length;
+  const frenteLabel=frente||'todas';
 
   document.getElementById('kpirowRisco').innerHTML=[
-    {h:'Horas Mod + Forte',big:degr.toFixed(1)+'h',meta:'total de exposição',col:'#d9534f'},
-    {h:'% Exposição',big:pctDegr.toFixed(1)+'%',meta:'do tempo operado',col:'#d9534f'},
-    {h:'Horas Forte',big:forte.toFixed(1)+'h',meta:'máximo risco',col:'#d9534f'},
-    {h:'Dias com Risco',big:diasRisco,meta:'dias com exp. crítica',col:'#e8842c'},
+    {h:'Risco Regional (Mod+Forte)',big:sci.degr.toFixed(1)+'h',meta:'horas da base de cintilação',col:'#d9534f'},
+    {h:'Forte (Região)',big:sci.forte.toFixed(1)+'h',meta:'exposição máxima regional',col:'#d9534f'},
+    {h:'% do Período c/ Risco',big:pctDegrSci.toFixed(1)+'%',meta:'das horas da base com Mod ou Forte',col:'#e8842c'},
+    {h:'Dias com Risco',big:diasRisco,meta:'dias com cintilação crítica',col:'#e8842c'},
+    {h:'Oper. em Risco',big:rtk.degr.toFixed(1)+'h',meta:`frente: ${frenteLabel}`,col:'#7c8a80'},
+    {h:'% Oper. em Risco',big:pctDegrRtk.toFixed(1)+'%',meta:'das hrs oper. sob Mod+Forte',col:'#7c8a80'},
   ].map(k=>`<div class="kpi" style="border-top-color:${k.col}">
     <div class="h">${k.h}</div>
     <div class="big" style="color:${k.col}">${k.big}</div>
     <div class="meta">${k.meta}</div>
   </div>`).join('');
 
+  // Gráfico esquerdo: risco regional — base de cintilação por hora (todos os níveis empilhados)
   mkChart('cRiscoBar',{type:'bar',
+    data:{labels:hrs24L,datasets:ORDER.map(e=>({label:LABEL[e],
+      data:hrs24.map(h=>+sci.porHora[h][e].toFixed(2)),backgroundColor:COLOR[e]}))},
+    options:{indexAxis:'y',plugins:{legend:{position:'top',labels:{boxWidth:11,padding:10}}},
+      scales:{x:{stacked:true,beginAtZero:true,title:{display:true,text:'horas (base cintilação)'}},
+              y:{stacked:true,grid:{display:false}}}}});
+
+  // Gráfico direito: horas operacionais em risco por hora (Mod + Forte)
+  mkChart('cRiscoPct',{type:'bar',
     data:{labels:hrs24L,datasets:[
-      {label:'Moderada',data:hrs24.map(h=>+porHora[h]['Moderada'].toFixed(2)),backgroundColor:COLOR['Moderada']},
-      {label:'Forte',data:hrs24.map(h=>+porHora[h]['Forte'].toFixed(2)),backgroundColor:COLOR['Forte']}
+      {label:'Moderada',data:hrs24.map(h=>+rtk.porHora[h]['Moderada'].toFixed(2)),backgroundColor:COLOR['Moderada']},
+      {label:'Forte',data:hrs24.map(h=>+rtk.porHora[h]['Forte'].toFixed(2)),backgroundColor:COLOR['Forte']}
     ]},
     options:{indexAxis:'y',plugins:{legend:{position:'top',labels:{boxWidth:11,padding:10}}},
-      scales:{x:{stacked:true,beginAtZero:true,title:{display:true,text:'horas'}},y:{stacked:true,grid:{display:false}}}}});
+      scales:{x:{stacked:true,beginAtZero:true,title:{display:true,text:'horas operacionais'}},
+              y:{stacked:true,grid:{display:false}}}}});
 
-  const pctRiscoHr=hrs24.map(h=>{
-    const tot=ORDER.reduce((s,e)=>s+porHora[h][e],0);
-    return tot?(porHora[h]['Moderada']+porHora[h]['Forte'])/tot*100:0;
-  });
-  mkChart('cRiscoPct',{type:'bar',
-    data:{labels:hrs24L,datasets:[{label:'% risco',data:pctRiscoHr.map(v=>+v.toFixed(1)),
-      backgroundColor:pctRiscoHr.map(v=>v>=50?COLOR['Forte']:v>=25?COLOR['Moderada']:COLOR['Fraca']),
-      borderRadius:3}]},
-    options:{plugins:{legend:{display:false}},
-      scales:{x:{grid:{display:false}},y:{beginAtZero:true,max:100,title:{display:true,text:'%'}}}}});
+  // Tabela: top 10 dias por risco regional + cruzamento com horas oper.
+  const allDays=[...new Set([...Object.keys(sci.porDia),...Object.keys(rtk.porDia)])].sort();
+  const top10=allDays
+    .map(d=>{
+      const sd_=sci.porDia[d]||{};
+      const rd_=rtk.porDia[d]||{};
+      const sciDegr=(sd_['Moderada']||0)+(sd_['Forte']||0);
+      const rtkDegr=(rd_['Moderada']||0)+(rd_['Forte']||0);
+      const rtkTot=ORDER.reduce((s,e)=>s+(rd_[e]||0),0);
+      return{d,sciDegr,rtkDegr,rtkTot};
+    })
+    .filter(r=>r.sciDegr>0)
+    .sort((a,b)=>b.sciDegr-a.sciDegr)
+    .slice(0,10);
 
-  const top10=Object.entries(porDia)
-    .map(([d,v])=>({d,risco:v['Moderada']+v['Forte'],mod:v['Moderada'],forte:v['Forte']}))
-    .filter(r=>r.risco>0).sort((a,b)=>b.risco-a.risco).slice(0,10);
   document.getElementById('riscoTopTable').innerHTML=
-    `<table class="tbl"><thead><tr><th>#</th><th>Data</th><th>Horas Moderada</th><th>Horas Forte</th><th>Total Risco</th></tr></thead><tbody>`+
-    top10.map((r,i)=>`<tr><td>${i+1}</td><td>${r.d}</td>
-      <td><span class="dot" style="background:${COLOR['Moderada']}"></span>${r.mod.toFixed(2)}h</td>
-      <td><span class="dot" style="background:${COLOR['Forte']}"></span>${r.forte.toFixed(2)}h</td>
-      <td><b>${r.risco.toFixed(2)}h</b></td></tr>`).join('')+
+    `<table class="tbl"><thead><tr><th>#</th><th>Data</th>
+      <th>Risco Regional (h)</th><th>Oper. em Risco (h)</th><th>% Oper. Exposta</th>
+    </tr></thead><tbody>`+
+    top10.map((r,i)=>{
+      const pct=r.rtkTot?r.rtkDegr/r.rtkTot*100:0;
+      return `<tr><td>${i+1}</td><td>${r.d}</td>
+        <td><span class="dot" style="background:${COLOR['Forte']}"></span>${r.sciDegr.toFixed(2)}h</td>
+        <td>${r.rtkDegr.toFixed(2)}h</td>
+        <td>${pct.toFixed(1)}%</td></tr>`;
+    }).join('')+
     '</tbody></table>';
 }
 
