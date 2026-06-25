@@ -149,6 +149,36 @@
     .badge{font-size:9px;padding:1px 6px}
   }
   .print-header{display:none}
+
+  /* ── painel de cobertura de datas ── */
+  .dateinfo{background:var(--card);border:1px solid var(--line);border-radius:10px;
+    padding:11px 16px;margin-bottom:14px;display:flex;align-items:center;gap:16px;flex-wrap:wrap}
+  .di-title{font-size:11px;font-weight:700;color:var(--dim);white-space:nowrap;min-width:max-content}
+  .di-sep{width:1px;align-self:stretch;background:var(--line);flex-shrink:0}
+  .di-col{display:flex;flex-direction:column;gap:2px;min-width:140px}
+  .di-label{font-size:10px;font-weight:700;color:var(--dim);text-transform:uppercase;letter-spacing:.04em}
+  .di-range{font-size:12.5px;color:var(--ink);font-weight:600}
+  .di-sub{font-size:10px;color:var(--faint);margin-top:1px}
+  .di-pill{display:inline-block;padding:1px 8px;border-radius:20px;font-size:10px;font-weight:700;
+    color:#fff;margin-left:5px;vertical-align:middle}
+
+  /* ── tooltip de info ── */
+  .info-wrap{display:inline-block;position:relative;vertical-align:middle;margin-left:5px}
+  .info-icon{display:inline-flex;align-items:center;justify-content:center;width:15px;height:15px;
+    border-radius:50%;background:var(--faint);color:#fff;font-size:9px;cursor:help;font-style:normal;
+    font-weight:700;line-height:1}
+  .info-tip{display:none;position:absolute;bottom:calc(100% + 6px);left:50%;transform:translateX(-50%);
+    background:#2b3a30;color:#e8f0eb;padding:10px 13px;border-radius:9px;font-size:11px;line-height:1.55;
+    width:300px;z-index:200;box-shadow:0 4px 16px rgba(0,0,0,.25);pointer-events:none;font-weight:400}
+  .info-tip b{color:#7cc06f}
+  .info-tip::after{content:'';position:absolute;top:100%;left:50%;transform:translateX(-50%);
+    border:5px solid transparent;border-top-color:#2b3a30}
+  .info-wrap:hover .info-tip{display:block}
+
+  @media print{
+    .dateinfo{display:flex!important;flex-wrap:wrap;gap:10px;padding:8px 12px;margin-bottom:10px}
+    .info-wrap{display:none}
+  }
 </style>
 </head>
 <body>
@@ -198,7 +228,13 @@
 
     <!-- ═══ ABA: VISÃO GERAL ═══ -->
     <div class="tab-pane active" id="pane-geral">
+      <!-- painel de cobertura de datas -->
+      <div class="dateinfo" id="dateInfo">
+        <div class="di-title">📅 Cobertura de Dados</div>
+      </div>
+
       <div class="kpirow" id="kpirow"></div>
+
       <div class="row r2">
         <div class="panel">
           <h3>Horas operacionais por faixa de cintilação</h3>
@@ -211,17 +247,28 @@
           <div class="chartbox"><canvas id="cDonut"></canvas></div>
         </div>
       </div>
-      <div class="row">
+
+      <!-- os dois gráficos lado a lado -->
+      <div class="row r2">
         <div class="panel">
-          <h3>Horas operacionais por hora do dia (UTC)</h3>
-          <div class="pdesc">Distribuição horária estimada das operações por faixa de cintilação.</div>
+          <h3>
+            Horas por hora do dia (UTC)
+            <span class="info-wrap">
+              <i class="info-icon">i</i>
+              <span class="info-tip">
+                <b>Como esta estimativa é calculada:</b><br>
+                O arquivo RTK registra apenas a <b>data</b> de cada operação — sem hora exata de início. Por isso, não é possível saber em qual horário do dia cada operação ocorreu.<br><br>
+                A solução: para cada dia com operação, as horas são distribuídas entre as 24 faixas horárias <b>proporcionalmente ao padrão de cintilação daquele dia</b>. Se às 02h houve mais blocos "Forte" que às 14h, mais horas operadas são atribuídas ao período noturno.<br><br>
+                Trata-se de uma <b>estimativa probabilística</b>, não de horários reais registrados.
+              </span>
+            </span>
+          </h3>
+          <div class="pdesc">Estimativa: horas distribuídas pelo padrão horário de cintilação de cada dia.</div>
           <div class="chartbox lg"><canvas id="cHour"></canvas></div>
         </div>
-      </div>
-      <div class="row">
         <div class="panel">
-          <h3>Exposição ao risco <span class="badge" style="background:var(--red)">Moderada + Forte</span></h3>
-          <div class="pdesc">Horas sob cintilação Moderada e Forte, por hora do dia.</div>
+          <h3>Exposição ao risco <span class="badge" style="background:var(--red)">Mod + Forte</span></h3>
+          <div class="pdesc">Estimativa de horas sob cintilação crítica, por hora do dia.</div>
           <div class="chartbox lg"><canvas id="cRisk"></canvas></div>
         </div>
       </div>
@@ -640,10 +687,70 @@ function aggregate(rows, sd){
     meta:rows._meta||{totalE:rf.length,semData:0}};
 }
 
+/* ── informativo de datas disponíveis ── */
+function renderDateInfo(rows, sd){
+  const el=document.getElementById('dateInfo');
+  if(!el)return;
+
+  const fmtD=d=>{const p=d.split('-');return `${p[2]}/${p[1]}/${p[0]}`;};
+
+  // RTK
+  let rtkMin='—',rtkMax='—',rtkDays=0;
+  if(rows&&rows.length){
+    const dates=[...new Set(rows.map(r=>r.dateStr))].sort();
+    rtkDays=dates.length;
+    rtkMin=fmtD(dates[0]);rtkMax=fmtD(dates[dates.length-1]);
+  }
+
+  // Cintilação
+  let sciMin='—',sciMax='—',sciDays=0;
+  if(sd&&sd.dayDist.size){
+    const dates=[...sd.dayDist.keys()].sort();
+    sciDays=dates.length;
+    sciMin=fmtD(dates[0]);sciMax=fmtD(dates[dates.length-1]);
+  }
+
+  // Cruzamento
+  let matchDays=0,matchMin='—',matchMax='—';
+  if(rows&&sd){
+    const rtkSet=new Set(rows.map(r=>r.dateStr));
+    const shared=[...sd.dayDist.keys()].filter(k=>rtkSet.has(k)).sort();
+    matchDays=shared.length;
+    if(shared.length){matchMin=fmtD(shared[0]);matchMax=fmtD(shared[shared.length-1]);}
+  }
+
+  const statusCol=usingDemo?'#e6a52e':matchDays>0?'#52a447':'#d9534f';
+  const statusTxt=usingDemo?'DEMO':matchDays>0?'OK':'SEM DADOS';
+
+  el.innerHTML=`
+    <div class="di-title">📅 Cobertura de Dados</div>
+    <div class="di-sep"></div>
+    <div class="di-col">
+      <div class="di-label">🛰️ RTK</div>
+      <div class="di-range">${rtkMin} → ${rtkMax}</div>
+      <div class="di-sub">${rtkDays} dias com operação estado E</div>
+    </div>
+    <div class="di-sep"></div>
+    <div class="di-col">
+      <div class="di-label">🌙 Cintilação</div>
+      <div class="di-range">${sciMin} → ${sciMax}</div>
+      <div class="di-sub">${sciDays} dias de leitura disponíveis</div>
+    </div>
+    <div class="di-sep"></div>
+    <div class="di-col">
+      <div class="di-label">🔗 Cruzamento</div>
+      <div class="di-range">${matchDays>0?matchMin+' → '+matchMax:'—'}
+        <span class="di-pill" style="background:${statusCol}">${statusTxt}</span>
+      </div>
+      <div class="di-sub">${matchDays} dias com ambas as fontes</div>
+    </div>`;
+}
+
 /* ── render principal ── */
 function render(){
   let rows=rtkRows,sd=sciData;
   if(usingDemo){const d=makeDemo();rows=d.rows;sd=d.sciData;}
+  renderDateInfo(rows,sd);
   lastAgg=aggregate(rows,sd);
   renderTab(activeTab,lastAgg);
 }
