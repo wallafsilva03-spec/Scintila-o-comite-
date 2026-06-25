@@ -40,8 +40,7 @@
   .daterange input{border:none;font-family:var(--sans);font-size:12px;color:var(--ink);
     background:transparent;outline:none;width:108px}
   .importbtn{background:var(--rail2);color:#fff;border:none;border-radius:8px;padding:8px 14px;
-    font-size:12px;font-weight:600;cursor:pointer;position:relative;overflow:hidden}
-  .importbtn input{position:absolute;inset:0;opacity:0;cursor:pointer;width:100%}
+    font-size:12px;font-weight:600;cursor:pointer}
   .importbtn.done{background:var(--green)}
   .pdfbtn{background:var(--card);color:var(--ink);border:1px solid var(--line);border-radius:8px;
     padding:8px 14px;font-size:12px;font-weight:600;cursor:pointer;white-space:nowrap}
@@ -127,19 +126,19 @@
     .print-header .ph-title{font-size:14px;font-weight:700;color:#16241b}
     .print-header .ph-meta{font-size:10px;color:#555}
 
-    /* KPIs */
-    .kpirow{grid-template-columns:repeat(3,1fr)!important;gap:8px!important;margin-bottom:10px}
-    .kpirow4{grid-template-columns:repeat(4,1fr)!important}
-    .kpi{padding:8px 10px;border-radius:6px}
-    .kpi .big{font-size:18px}
+    /* KPIs — 3 por linha tanto para 4 quanto para 6 */
+    .kpirow,.kpirow4{grid-template-columns:repeat(3,1fr)!important;gap:8px!important;margin-bottom:10px}
+    .kpi{padding:8px 10px;border-radius:6px;break-inside:avoid}
+    .kpi .big{font-size:17px}
 
     /* grid sempre 2 colunas */
     .row.r2{grid-template-columns:1fr 1fr!important;gap:8px}
     .row{gap:8px;margin-bottom:8px}
 
-    /* charts - altura fixa e razoável */
-    .chartbox,.chartbox.lg,.chartbox.xl{height:200px!important}
-    canvas{background:#fff}
+    /* canvas oculto quando substituído por imagem */
+    canvas{visibility:hidden}
+    ._print-img{display:block!important;max-width:100%;height:auto!important}
+    .chartbox,.chartbox.lg,.chartbox.xl{height:220px!important;overflow:hidden}
 
     /* paineis */
     .panel{padding:10px 12px;border-radius:6px;border:1px solid #ccc;break-inside:avoid}
@@ -207,8 +206,10 @@
   <div class="main">
     <div class="topbar">
       <div class="filters">
-        <button class="importbtn" id="btnRtk">Importar RTK<input type="file" id="fileRtk" accept=".txt,.csv"></button>
-        <button class="importbtn" id="btnSci">Importar Cintilação<input type="file" id="fileSci" accept=".txt,.csv"></button>
+        <button class="importbtn" id="btnRtk" onclick="document.getElementById('fileRtk').click()">Importar RTK</button>
+        <input type="file" id="fileRtk" accept=".txt,.csv" style="display:none">
+        <button class="importbtn" id="btnSci" onclick="document.getElementById('fileSci').click()">Importar Cintilação</button>
+        <input type="file" id="fileSci" accept=".txt,.csv" style="display:none">
         <div class="frente-wrap">
           <label>Frente</label>
           <select id="selFrente"><option value="">Todas as frentes</option></select>
@@ -426,9 +427,35 @@ document.querySelectorAll('.rail .item[data-tab]').forEach(el=>{
 function exportPDF(){
   const ini=document.getElementById('dtIni').value||'—';
   const fim=document.getElementById('dtFim').value||'—';
+  const frente=document.getElementById('selFrente').value;
+  const frenteStr=frente?`  |  Frente: ${frente}`:'';
   document.getElementById('printMeta').textContent=
-    `Período: ${ini} → ${fim}  |  Gerado: ${new Date().toLocaleDateString('pt-BR',{day:'2-digit',month:'2-digit',year:'numeric',hour:'2-digit',minute:'2-digit'})}`;
+    `Período: ${ini} → ${fim}${frenteStr}  |  Gerado: ${new Date().toLocaleDateString('pt-BR',{day:'2-digit',month:'2-digit',year:'numeric',hour:'2-digit',minute:'2-digit'})}`;
+
+  // Converte canvas para imagem para garantir impressão correta
+  const pane=document.getElementById('pane-'+activeTab);
+  const replaced=[];
+  pane.querySelectorAll('canvas').forEach(canvas=>{
+    try{
+      const img=document.createElement('img');
+      img.src=canvas.toDataURL('image/png',1.0);
+      img.style.width='100%';
+      img.style.height=canvas.offsetHeight+'px';
+      img.style.display='block';
+      img.classList.add('_print-img');
+      canvas.parentNode.insertBefore(img,canvas);
+      canvas.style.visibility='hidden';
+      replaced.push(canvas);
+    }catch(e){}
+  });
+
   window.print();
+
+  // Restaura após impressão
+  setTimeout(()=>{
+    replaced.forEach(c=>{c.style.visibility='';});
+    document.querySelectorAll('._print-img').forEach(i=>i.remove());
+  },600);
 }
 
 /* ── helpers de parsing ── */
@@ -495,7 +522,8 @@ function parseRtk(text){
   const iL =H.findIndex(h=>h.includes('DATA/HORA LOCAL'));
   const iH =H.findIndex(h=>h==='HRS OPERACIONAIS');
   const iHs=H.findIndex(h=>h==='HRS OPERACIONAIS(SEC)');
-  const iT =H.findIndex(h=>h==='COD. TALHAO');
+  const iT =H.findIndex(h=>/COD\.?\s*TALH/i.test(h));
+  const iZ =H.findIndex(h=>/COD\.?\s*ZONA/i.test(h));
 
   if(iE<0) throw new Error('Coluna ESTADO não encontrada no arquivo RTK.');
   if(iU<0&&iL<0) throw new Error('Coluna DATA/HORA não encontrada (esperado: DATA/HORA UTC ou DATA/HORA LOCAL).');
@@ -519,8 +547,11 @@ function parseRtk(text){
     if(isNaN(horas)&&iH>=0) horas=parseNum(c[iH]);
 
     if(!dt||isNaN(horas)||horas<=0){semData++;continue;}
-    const talhao=iT>=0?(c[iT]?.trim()||''):'';
-    rows.push({dt, dateStr:dateKey(dt), horas, talhao});
+    const zona  =iZ>=0?(c[iZ]?.trim()||''):'';
+    const tal   =iT>=0?(c[iT]?.trim()||''):'';
+    // chave de frente: combina zona+talhão para identificação única
+    const talhao=[zona,tal].filter(Boolean).join(' / ');
+    rows.push({dt, dateStr:dateKey(dt), horas, talhao, zona, tal});
   }
 
   rows._meta={totalE,semData};
@@ -611,7 +642,9 @@ function makeDemo(){
       const int2=(h>=6&&h<=20)?0.9:0.5;
       if(Math.random()<int2){
         const dt=new Date(base);dt.setUTCDate(d+1);dt.setUTCHours(h);dt.setUTCMinutes(bb==='30'?40:10);
-        rows.push({dt,dateStr:dk,horas:+(0.2+Math.random()*0.5).toFixed(2),talhao:''});
+        const demoFrentes=['01 / 1001','01 / 1002','02 / 2001','02 / 2002'];
+        rows.push({dt,dateStr:dk,horas:+(0.2+Math.random()*0.5).toFixed(2),
+          talhao:demoFrentes[(d+Math.floor(slot/12))%demoFrentes.length],zona:'0'+((d%2)+1),tal:String(1001+(d%4))});
       }
     }
   }
@@ -628,11 +661,11 @@ function load(input,kind){
       rtkRows=parseRtk(e.target.result);
       document.getElementById('btnRtk').classList.add('done');
       document.getElementById('btnRtk').firstChild.textContent='RTK ✓ ';
-      // popula select de frentes
-      const frentes=[...new Set(rtkRows.map(r=>r.talhao).filter(Boolean))].sort();
+      // popula select de frentes (valor = chave zona/talhao)
+      const frenteSet=[...new Set(rtkRows.map(r=>r.talhao).filter(Boolean))].sort();
       const sel=document.getElementById('selFrente');
       sel.innerHTML='<option value="">Todas as frentes</option>'+
-        frentes.map(f=>`<option value="${f}">${f}</option>`).join('');
+        frenteSet.map(f=>`<option value="${f}">${f}</option>`).join('');
     }else{
       sciData=parseSci(e.target.result);
       document.getElementById('btnSci').classList.add('done');
@@ -648,7 +681,13 @@ document.getElementById('fileSci').addEventListener('change',function(){load(thi
 document.getElementById('dtIni').addEventListener('change',render);
 document.getElementById('dtFim').addEventListener('change',render);
 document.getElementById('selFrente').addEventListener('change',()=>{
-  if(lastAgg&&activeTab==='risco')renderRisco(lastAgg);
+  if(!lastAgg)return;
+  if(activeTab==='risco'){
+    renderRisco(lastAgg);
+  }else{
+    // navega direto para o mapa de risco ao selecionar frente
+    document.querySelector('.rail .item[data-tab="risco"]').click();
+  }
 });
 
 /* ── agregação central (cruzamento por DIA com distribuição proporcional) ── */
@@ -770,7 +809,16 @@ function renderDateInfo(rows, sd){
 /* ── render principal ── */
 function render(){
   let rows=rtkRows,sd=sciData;
-  if(usingDemo){const d=makeDemo();rows=d.rows;sd=d.sciData;}
+  if(usingDemo){
+    const d=makeDemo();rows=d.rows;sd=d.sciData;
+    // popula select com frentes demo para permitir teste
+    const frenteSet=[...new Set(rows.map(r=>r.talhao).filter(Boolean))].sort();
+    const sel=document.getElementById('selFrente');
+    if(sel.options.length<=1){
+      sel.innerHTML='<option value="">Todas as frentes</option>'+
+        frenteSet.map(f=>`<option value="${f}">${f}</option>`).join('');
+    }
+  }
   renderDateInfo(rows,sd);
   lastAgg=aggregate(rows,sd);
   lastAgg._sd=sd;
