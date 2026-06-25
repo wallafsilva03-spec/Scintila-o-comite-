@@ -593,7 +593,8 @@ function parseSci(text){
     const hourNum=parseInt(hh,10);
 
     let escala=null;
-    for(const ci of [3,2,4,5]){
+    // prioridade: c[5]=Escala_Maxima (novo formato 6 col) → c[4]=Escala_Media → c[3]=Escala (formato antigo 4 col)
+    for(const ci of [5,4,3,2]){
       if(c[ci]!==undefined){escala=normEscala(c[ci]);if(escala)break;}
     }
 
