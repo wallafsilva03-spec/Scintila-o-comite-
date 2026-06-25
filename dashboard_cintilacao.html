@@ -51,6 +51,7 @@
   .frente-wrap select{border:none;font-family:var(--sans);font-size:12px;color:var(--ink);
     background:transparent;outline:none;cursor:pointer;max-width:160px}
   .frente-tag{font-size:9px;background:#e8842c;color:#fff;border-radius:10px;padding:1px 6px;font-weight:700;white-space:nowrap}
+  .grupo-tag{font-size:9px;background:#16241b;color:#7cc06f;border-radius:10px;padding:1px 6px;font-weight:700;white-space:nowrap}
 
   /* ── kpi row ── */
   .kpirow{display:grid;grid-template-columns:repeat(6,1fr);gap:10px;margin-bottom:14px}
@@ -135,10 +136,9 @@
     .row.r2{grid-template-columns:1fr 1fr!important;gap:8px}
     .row{gap:8px;margin-bottom:8px}
 
-    /* canvas oculto quando substituído por imagem */
-    canvas{visibility:hidden}
-    ._print-img{display:block!important;max-width:100%;height:auto!important}
-    .chartbox,.chartbox.lg,.chartbox.xl{height:220px!important;overflow:hidden}
+    /* canvas substituído por <img> antes da impressão */
+    .chartbox,.chartbox.lg,.chartbox.xl{height:auto!important;min-height:180px;overflow:visible}
+    .chartbox img{display:block;width:100%;height:auto}
 
     /* paineis */
     .panel{padding:10px 12px;border-radius:6px;border:1px solid #ccc;break-inside:avoid}
@@ -210,6 +210,11 @@
         <input type="file" id="fileRtk" accept=".txt,.csv" style="display:none">
         <button class="importbtn" id="btnSci" onclick="document.getElementById('fileSci').click()">Importar Cintilação</button>
         <input type="file" id="fileSci" accept=".txt,.csv" style="display:none">
+        <div class="frente-wrap">
+          <label>Grupo</label>
+          <select id="selGrupo"><option value="">Todos os grupos</option></select>
+          <span class="grupo-tag">GLOBAL</span>
+        </div>
         <div class="frente-wrap">
           <label>Frente</label>
           <select id="selFrente"><option value="">Todas as frentes</option></select>
@@ -428,34 +433,35 @@ function exportPDF(){
   const ini=document.getElementById('dtIni').value||'—';
   const fim=document.getElementById('dtFim').value||'—';
   const frente=document.getElementById('selFrente').value;
-  const frenteStr=frente?`  |  Frente: ${frente}`:'';
+  const grupo=document.getElementById('selGrupo')?.value||'';
+  const extras=[frente?`Frente: ${frente}`:'',grupo?`Grupo: ${grupo}`:''].filter(Boolean).join('  |  ');
   document.getElementById('printMeta').textContent=
-    `Período: ${ini} → ${fim}${frenteStr}  |  Gerado: ${new Date().toLocaleDateString('pt-BR',{day:'2-digit',month:'2-digit',year:'numeric',hour:'2-digit',minute:'2-digit'})}`;
+    `Período: ${ini} → ${fim}${extras?'  |  '+extras:''}  |  Gerado: `+
+    new Date().toLocaleDateString('pt-BR',{day:'2-digit',month:'2-digit',year:'numeric',hour:'2-digit',minute:'2-digit'});
 
-  // Converte canvas para imagem para garantir impressão correta
+  // Substitui cada canvas por <img> PNG — canvas não imprime de forma confiável em todos os browsers
   const pane=document.getElementById('pane-'+activeTab);
-  const replaced=[];
+  const swaps=[];
   pane.querySelectorAll('canvas').forEach(canvas=>{
     try{
+      const w=canvas.offsetWidth||canvas.width||600;
+      const h=canvas.offsetHeight||canvas.height||220;
       const img=document.createElement('img');
       img.src=canvas.toDataURL('image/png',1.0);
-      img.style.width='100%';
-      img.style.height=canvas.offsetHeight+'px';
-      img.style.display='block';
-      img.classList.add('_print-img');
-      canvas.parentNode.insertBefore(img,canvas);
-      canvas.style.visibility='hidden';
-      replaced.push(canvas);
+      img.style.cssText=`width:${w}px;max-width:100%;height:${h}px;display:block`;
+      canvas.parentNode.replaceChild(img,canvas);
+      swaps.push({parent:img.parentNode,img,canvas});
     }catch(e){}
   });
 
   window.print();
 
-  // Restaura após impressão
+  // Restaura canvases após impressão
   setTimeout(()=>{
-    replaced.forEach(c=>{c.style.visibility='';});
-    document.querySelectorAll('._print-img').forEach(i=>i.remove());
-  },600);
+    swaps.forEach(({img,canvas})=>{
+      if(img.parentNode) img.parentNode.replaceChild(canvas,img);
+    });
+  },800);
 }
 
 /* ── helpers de parsing ── */
@@ -524,6 +530,7 @@ function parseRtk(text){
   const iHs=H.findIndex(h=>h==='HRS OPERACIONAIS(SEC)');
   const iT =H.findIndex(h=>/COD\.?\s*TALH/i.test(h));
   const iZ =H.findIndex(h=>/COD\.?\s*ZONA/i.test(h));
+  const iG =H.findIndex(h=>/GRUPO\s*EQUIP/i.test(h));
 
   if(iE<0) throw new Error('Coluna ESTADO não encontrada no arquivo RTK.');
   if(iU<0&&iL<0) throw new Error('Coluna DATA/HORA não encontrada (esperado: DATA/HORA UTC ou DATA/HORA LOCAL).');
@@ -549,9 +556,10 @@ function parseRtk(text){
     if(!dt||isNaN(horas)||horas<=0){semData++;continue;}
     const zona  =iZ>=0?(c[iZ]?.trim()||''):'';
     const tal   =iT>=0?(c[iT]?.trim()||''):'';
+    const grupo =iG>=0?(c[iG]?.trim()||''):'';
     // chave de frente: combina zona+talhão para identificação única
     const talhao=[zona,tal].filter(Boolean).join(' / ');
-    rows.push({dt, dateStr:dateKey(dt), horas, talhao, zona, tal});
+    rows.push({dt, dateStr:dateKey(dt), horas, talhao, zona, tal, grupo});
   }
 
   rows._meta={totalE,semData};
@@ -643,8 +651,11 @@ function makeDemo(){
       if(Math.random()<int2){
         const dt=new Date(base);dt.setUTCDate(d+1);dt.setUTCHours(h);dt.setUTCMinutes(bb==='30'?40:10);
         const demoFrentes=['01 / 1001','01 / 1002','02 / 2001','02 / 2002'];
+        const demoGrupos=['COLHEDORA','TRANSBORDO'];
+        const fi=(d+Math.floor(slot/12))%demoFrentes.length;
         rows.push({dt,dateStr:dk,horas:+(0.2+Math.random()*0.5).toFixed(2),
-          talhao:demoFrentes[(d+Math.floor(slot/12))%demoFrentes.length],zona:'0'+((d%2)+1),tal:String(1001+(d%4))});
+          talhao:demoFrentes[fi],zona:'0'+((d%2)+1),tal:String(1001+(d%4)),
+          grupo:demoGrupos[fi%2]});
       }
     }
   }
@@ -661,6 +672,11 @@ function load(input,kind){
       rtkRows=parseRtk(e.target.result);
       document.getElementById('btnRtk').classList.add('done');
       document.getElementById('btnRtk').firstChild.textContent='RTK ✓ ';
+      // popula select de grupos
+      const grupoSet=[...new Set(rtkRows.map(r=>r.grupo).filter(Boolean))].sort();
+      const selG=document.getElementById('selGrupo');
+      selG.innerHTML='<option value="">Todos os grupos</option>'+
+        grupoSet.map(g=>`<option value="${g}">${g}</option>`).join('');
       // popula select de frentes (valor = chave zona/talhao)
       const frenteSet=[...new Set(rtkRows.map(r=>r.talhao).filter(Boolean))].sort();
       const sel=document.getElementById('selFrente');
@@ -680,12 +696,12 @@ document.getElementById('fileRtk').addEventListener('change',function(){load(thi
 document.getElementById('fileSci').addEventListener('change',function(){load(this,'sci');});
 document.getElementById('dtIni').addEventListener('change',render);
 document.getElementById('dtFim').addEventListener('change',render);
+document.getElementById('selGrupo').addEventListener('change',render);
 document.getElementById('selFrente').addEventListener('change',()=>{
   if(!lastAgg)return;
   if(activeTab==='risco'){
     renderRisco(lastAgg);
   }else{
-    // navega direto para o mapa de risco ao selecionar frente
     document.querySelector('.rail .item[data-tab="risco"]').click();
   }
 });
@@ -811,18 +827,23 @@ function render(){
   let rows=rtkRows,sd=sciData;
   if(usingDemo){
     const d=makeDemo();rows=d.rows;sd=d.sciData;
-    // popula select com frentes demo para permitir teste
+    // popula selects demo para teste
     const frenteSet=[...new Set(rows.map(r=>r.talhao).filter(Boolean))].sort();
-    const sel=document.getElementById('selFrente');
-    if(sel.options.length<=1){
-      sel.innerHTML='<option value="">Todas as frentes</option>'+
-        frenteSet.map(f=>`<option value="${f}">${f}</option>`).join('');
-    }
+    const grupoSet=[...new Set(rows.map(r=>r.grupo).filter(Boolean))].sort();
+    const selF=document.getElementById('selFrente');
+    const selG=document.getElementById('selGrupo');
+    if(selF.options.length<=1)
+      selF.innerHTML='<option value="">Todas as frentes</option>'+frenteSet.map(f=>`<option value="${f}">${f}</option>`).join('');
+    if(selG.options.length<=1)
+      selG.innerHTML='<option value="">Todos os grupos</option>'+grupoSet.map(g=>`<option value="${g}">${g}</option>`).join('');
   }
-  renderDateInfo(rows,sd);
-  lastAgg=aggregate(rows,sd);
+  // filtro global por grupo de equipamento
+  const grupo=document.getElementById('selGrupo').value;
+  const rowsFilt=grupo?rows.filter(r=>r.grupo===grupo):rows;
+  renderDateInfo(rowsFilt,sd);
+  lastAgg=aggregate(rowsFilt,sd);
   lastAgg._sd=sd;
-  lastAgg._allRows=rows;
+  lastAgg._allRows=rowsFilt;
   renderTab(activeTab,lastAgg);
 }
 
