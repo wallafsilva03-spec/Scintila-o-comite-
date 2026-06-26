@@ -576,6 +576,18 @@ function parseSci(text){
   const start=firstU.includes('DAT')||firstU.includes('HOR')?1:0;
   const preview=lines.slice(0,Math.min(4,lines.length)).join('\n');
 
+  // Detecta índices pelo cabeçalho: Escala_Media tem prioridade sobre Escala_Maxima
+  let colPriority=[4,5,3,2]; // fallback posicional
+  if(start===1){
+    const hdr=lines[0].split(sep).map(h=>h.trim().toUpperCase().replace(/[^A-Z]/g,''));
+    const iMedia=hdr.findIndex(h=>h==='ESCALAMEDIA');
+    const iMaxima=hdr.findIndex(h=>h==='ESCALAMAXIMA');
+    const iAntiga=hdr.findIndex(h=>h==='ESCALA');
+    if(iMedia>=0||iMaxima>=0||iAntiga>=0){
+      colPriority=[iMedia,iMaxima,iAntiga,3,2].filter(i=>i>=0);
+    }
+  }
+
   const blockMap=new Map();
   // dayDist: 'YYYY-MM-DD' → {Sem:n, Fraca:n, Moderada:n, Forte:n, total:n, byHour:[24][level:n]}
   const dayDist=new Map();
@@ -593,8 +605,8 @@ function parseSci(text){
     const hourNum=parseInt(hh,10);
 
     let escala=null;
-    // prioridade: c[5]=Escala_Maxima (novo formato 6 col) → c[4]=Escala_Media → c[3]=Escala (formato antigo 4 col)
-    for(const ci of [5,4,3,2]){
+    // prioridade: Escala_Media → Escala_Maxima → Escala (formato antigo)
+    for(const ci of colPriority){
       if(c[ci]!==undefined){escala=normEscala(c[ci]);if(escala)break;}
     }
 
@@ -617,7 +629,7 @@ function parseSci(text){
   const dbg=document.getElementById('debugBox');
   dbg.textContent=[
     `Cintilação: ${parsed} blocos lidos, ${skipped} pulados`,
-    `Separador: "${sep==='\t'?'TAB':sep}"  |  Cabeçalho: ${start?'sim':'não'}`,
+    `Separador: "${sep==='\t'?'TAB':sep}"  |  Cabeçalho: ${start?'sim':'não'}  |  Prioridade de colunas: [${colPriority.join(',')}] (Escala_Media primeiro)`,
     `Dias no mapa: ${dayDist.size}  |  Amostra de chaves: ${[...blockMap.keys()].slice(0,3).join(', ')}`,
     badEscala.size?`Escalas não reconhecidas: ${[...badEscala].slice(0,5).join(', ')}`:'',
     `Prévia:\n${preview}`
