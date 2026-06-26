@@ -474,29 +474,59 @@ function exportPDF(){
     `Período: ${ini} → ${fim}${extras?'  |  '+extras:''}  |  Gerado: `+
     new Date().toLocaleDateString('pt-BR',{day:'2-digit',month:'2-digit',year:'numeric',hour:'2-digit',minute:'2-digit'});
 
-  // Substitui cada canvas por <img> PNG — canvas não imprime de forma confiável em todos os browsers
+  // Força todos os charts do pane ativo a redesenhar sem animação antes de capturar
   const pane=document.getElementById('pane-'+activeTab);
   const swaps=[];
+
+  // Desativa animações temporariamente e força redesenho completo de cada chart
   pane.querySelectorAll('canvas').forEach(canvas=>{
-    try{
-      const w=canvas.offsetWidth||canvas.width||600;
-      const h=canvas.offsetHeight||canvas.height||220;
-      const img=document.createElement('img');
-      img.src=canvas.toDataURL('image/png',1.0);
-      img.style.cssText=`width:${w}px;max-width:100%;height:${h}px;display:block`;
-      canvas.parentNode.replaceChild(img,canvas);
-      swaps.push({parent:img.parentNode,img,canvas});
-    }catch(e){}
+    const chartInstance=Object.values(Chart.instances||{}).find(c=>c.canvas===canvas);
+    if(chartInstance){
+      chartInstance.options.animation=false;
+      chartInstance.options.animations=false;
+      chartInstance.update('none'); // redesenha sem animação
+    }
   });
 
-  window.print();
+  // requestAnimationFrame garante que o browser pintou os charts antes de capturar
+  requestAnimationFrame(()=>{
+    requestAnimationFrame(()=>{
+      pane.querySelectorAll('canvas').forEach(canvas=>{
+        try{
+          const dataUrl=canvas.toDataURL('image/png',1.0);
+          if(!dataUrl||dataUrl.length<200)return; // descarta canvas em branco
+          const w=canvas.offsetWidth||canvas.scrollWidth||600;
+          const h=canvas.offsetHeight||canvas.scrollHeight||220;
+          const img=document.createElement('img');
+          img.src=dataUrl;
+          // width:100% para escalar ao layout do PDF; height:auto mantém proporção
+          img.style.cssText=`display:block;width:100%;height:auto;max-height:${h}px;`;
+          canvas.parentNode.replaceChild(img,canvas);
+          swaps.push({img,canvas});
+        }catch(e){console.warn('Falha ao capturar canvas:',e);}
+      });
 
-  // Restaura canvases após impressão
-  setTimeout(()=>{
-    swaps.forEach(({img,canvas})=>{
-      if(img.parentNode) img.parentNode.replaceChild(canvas,img);
+      // afterprint restaura canvases (mais confiável que setTimeout)
+      function restore(){
+        swaps.forEach(({img,canvas})=>{
+          try{if(img.parentNode)img.parentNode.replaceChild(canvas,img);}catch(e){}
+        });
+        // Reativa animações
+        pane.querySelectorAll('canvas').forEach(canvas=>{
+          const chartInstance=Object.values(Chart.instances||{}).find(c=>c.canvas===canvas);
+          if(chartInstance){
+            chartInstance.options.animation=undefined;
+            chartInstance.options.animations=undefined;
+          }
+        });
+        window.removeEventListener('afterprint',restore);
+      }
+      window.addEventListener('afterprint',restore);
+
+      // Pequeno delay após a troca DOM para o browser renderizar as <img> antes do print
+      setTimeout(()=>window.print(),120);
     });
-  },800);
+  });
 }
 
 /* ── helpers de parsing ── */
@@ -947,6 +977,10 @@ function cd(){
   Chart.defaults.font.family="'Segoe UI',sans-serif";
   Chart.defaults.borderColor='#e2e6e2';
   Chart.defaults.font.size=11;
+  // sem animação — charts prontos imediatamente e seguros para toDataURL()
+  Chart.defaults.animation=false;
+  Chart.defaults.animations=false;
+  Chart.defaults.transitions={};
 }
 const hrs24=[...Array(24).keys()];
 const hrs24L=hrs24.map(h=>String(h).padStart(2,'0')+'h');
