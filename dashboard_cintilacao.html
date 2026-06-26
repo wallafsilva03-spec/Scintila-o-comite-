@@ -317,6 +317,25 @@
       <div class="row">
         <div class="panel" id="rtkMetricsPanel"></div>
       </div>
+      <div class="row r2">
+        <div class="panel">
+          <h3>Uso de RTK por equipamento (frota)</h3>
+          <div class="pdesc">Horas com RTK × sem RTK por código de equipamento — estado E.</div>
+          <div class="chartbox xl"><canvas id="cRtkEquip"></canvas></div>
+        </div>
+        <div class="panel">
+          <h3>Estado E com RTK zerado em cintilação</h3>
+          <div class="pdesc">Horas sem RTK durante períodos de cintilação ativa, por equipamento.</div>
+          <div class="chartbox xl"><canvas id="cRtkEquipCint"></canvas></div>
+        </div>
+      </div>
+      <div class="row">
+        <div class="panel">
+          <h3>Detalhamento RTK por equipamento (frota)</h3>
+          <div class="pdesc">As 3 métricas — uso RTK em E, uso E sem RTK e E com RTK zerado em cintilação — por código de equipamento.</div>
+          <div id="rtkEquipTable"></div>
+        </div>
+      </div>
     </div>
 
     <!-- ═══ ABA: CINTILAÇÃO ═══ -->
@@ -773,7 +792,7 @@ function aggregate(rows, sd){
 
     // acumula equipamento e RTK para todos os registros (independe de cintilação)
     const eq=r.equipamento||'(sem código)';
-    if(!porEquipamento[eq])porEquipamento[eq]={'Sem cintilacao':0,Fraca:0,Moderada:0,Forte:0,horas:0,horasRtk:0,horasSemRtk:0};
+    if(!porEquipamento[eq])porEquipamento[eq]={'Sem cintilacao':0,Fraca:0,Moderada:0,Forte:0,horas:0,horasRtk:0,horasSemRtk:0,horasSemRtkCint:0};
     porEquipamento[eq].horas+=r.horas;
     if(!isNaN(r.horasRtk)){totalHorasRtk+=r.horasRtk;hasRtkData=true;porEquipamento[eq].horasRtk+=r.horasRtk;}
     if(!isNaN(r.horasSemRtk)){totalHorasSemRtk+=r.horasSemRtk;porEquipamento[eq].horasSemRtk+=r.horasSemRtk;}
@@ -785,6 +804,7 @@ function aggregate(rows, sd){
     if(!isNaN(r.horasSemRtk)&&dist.total>0){
       const fracCint=(dist['Fraca']+dist['Moderada']+dist['Forte'])/dist.total;
       totalHorasSemRtkCint+=r.horasSemRtk*fracCint;
+      porEquipamento[eq].horasSemRtkCint+=r.horasSemRtk*fracCint;
     }
 
     total+=r.horas;
@@ -981,7 +1001,7 @@ function renderGeral(a){
 /* ════ RTK ════ */
 function renderRtk(a){
   cd();
-  const{porDiaRtk,porHora,total,nMatch,rf,meta,totalHorasRtk,totalHorasSemRtk,totalHorasSemRtkCint,hasRtkData}=a;
+  const{porDiaRtk,porHora,total,nMatch,rf,meta,totalHorasRtk,totalHorasSemRtk,totalHorasSemRtkCint,hasRtkData,porEquipamento}=a;
   const dias=Object.keys(porDiaRtk).sort();
   const totalRtk=Object.values(porDiaRtk).reduce((s,v)=>s+v,0);
   const media=dias.length?totalRtk/dias.length:0;
@@ -1059,6 +1079,61 @@ function renderRtk(a){
           <p>Colunas de horas com/sem RTK não encontradas no arquivo.<br>
           Para habilitar, verifique se o arquivo possui colunas como <b>HRS C/ RTK</b> e <b>HRS S/ RTK</b>.</p>
         </div>`;
+    }
+  }
+
+  // ── detalhamento das 3 métricas RTK por equipamento (frota) ──
+  const equips=Object.keys(porEquipamento).sort((x,y)=>porEquipamento[y].horas-porEquipamento[x].horas);
+  const semCodigo=equips.length===0||(equips.length===1&&equips[0]==='(sem código)');
+  const topEquips=equips.slice(0,20);
+
+  if(hasRtkData&&!semCodigo){
+    mkChart('cRtkEquip',{type:'bar',
+      data:{labels:topEquips,datasets:[
+        {label:'Com RTK',data:topEquips.map(eq=>+porEquipamento[eq].horasRtk.toFixed(2)),backgroundColor:'#52a447'},
+        {label:'Sem RTK',data:topEquips.map(eq=>+porEquipamento[eq].horasSemRtk.toFixed(2)),backgroundColor:'#e8842c'}
+      ]},
+      options:{indexAxis:'y',plugins:{legend:{position:'top',labels:{boxWidth:11,padding:10}}},
+        scales:{x:{stacked:true,beginAtZero:true,title:{display:true,text:'horas'}},
+                y:{stacked:true,grid:{display:false},ticks:{font:{size:10}}}}}});
+
+    mkChart('cRtkEquipCint',{type:'bar',
+      data:{labels:topEquips,datasets:[{label:'E sem RTK em cintilação',
+        data:topEquips.map(eq=>+porEquipamento[eq].horasSemRtkCint.toFixed(2)),backgroundColor:'#d9534f',borderRadius:3}]},
+      options:{indexAxis:'y',plugins:{legend:{display:false}},
+        scales:{x:{beginAtZero:true,title:{display:true,text:'horas'}},
+                y:{grid:{display:false},ticks:{font:{size:10}}}}}});
+  }else{
+    if(charts['cRtkEquip'])charts['cRtkEquip'].destroy();
+    if(charts['cRtkEquipCint'])charts['cRtkEquipCint'].destroy();
+  }
+
+  const te=document.getElementById('rtkEquipTable');
+  if(te){
+    if(semCodigo){
+      te.innerHTML='<div class="placeholder" style="padding:22px 20px"><p>Nenhum código de equipamento encontrado no arquivo RTK.<br>'+
+        'Verifique se há coluna de identificação de equipamento (COD. EQUIP, EQUIPAMENTO, COD. MAQUINA).</p></div>';
+    }else{
+      te.innerHTML=
+        `<table class="tbl"><thead><tr>
+          <th>#</th><th>Equipamento</th><th>Total E (h)</th>
+          <th>Uso RTK em E (h)</th><th>Uso E sem RTK (h)</th><th>% RTK</th>
+          <th>E s/ RTK em Cintilação (h)</th>
+        </tr></thead><tbody>`+
+        equips.map((eq,i)=>{
+          const r=porEquipamento[eq];
+          const pctRtk=r.horas&&hasRtkData?r.horasRtk/r.horas*100:0;
+          return `<tr>
+            <td>${i+1}</td>
+            <td><b>${eq}</b></td>
+            <td>${r.horas.toFixed(2)}h</td>
+            <td>${hasRtkData?r.horasRtk.toFixed(2)+'h':'—'}</td>
+            <td>${hasRtkData?r.horasSemRtk.toFixed(2)+'h':'—'}</td>
+            <td>${hasRtkData?`<span style="color:${pctRtk>=80?'#52a447':pctRtk>=50?'#e6a52e':'#d9534f'};font-weight:700">${pctRtk.toFixed(1)}%</span>`:'—'}</td>
+            <td><span class="dot" style="background:#d9534f"></span>${hasRtkData?r.horasSemRtkCint.toFixed(2)+'h':'—'}</td>
+          </tr>`;
+        }).join('')+
+        '</tbody></table>';
     }
   }
 }
