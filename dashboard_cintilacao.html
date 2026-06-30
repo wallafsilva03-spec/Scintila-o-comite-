@@ -5,6 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Performance Operacional × Cintilação</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <style>
   :root{
     --bg:#eef0f2;--card:#fff;--ink:#2b3a30;--dim:#7c8a80;--faint:#a7b2aa;
@@ -206,6 +207,8 @@
   <div class="main">
     <div class="topbar">
       <div class="filters">
+        <button class="importbtn" id="btnBase" onclick="document.getElementById('fileBase').click()">Importar Base Operacional</button>
+        <input type="file" id="fileBase" accept=".xlsx,.xls,.csv" style="display:none">
         <button class="importbtn" id="btnRtk" onclick="document.getElementById('fileRtk').click()">Importar RTK</button>
         <input type="file" id="fileRtk" accept=".txt,.csv" style="display:none">
         <button class="importbtn" id="btnSci" onclick="document.getElementById('fileSci').click()">Importar Cintilação</button>
@@ -314,6 +317,28 @@
           <div id="rtkTopTable"></div>
         </div>
       </div>
+      <div class="row">
+        <div class="panel" id="rtkMetricsPanel"></div>
+      </div>
+      <div class="row r2">
+        <div class="panel">
+          <h3>Uso de RTK por equipamento (frota)</h3>
+          <div class="pdesc">Horas com RTK × sem RTK por código de equipamento — estado E.</div>
+          <div class="chartbox xl"><canvas id="cRtkEquip"></canvas></div>
+        </div>
+        <div class="panel">
+          <h3>Estado E com RTK zerado em cintilação</h3>
+          <div class="pdesc">Horas sem RTK durante períodos de cintilação ativa, por equipamento.</div>
+          <div class="chartbox xl"><canvas id="cRtkEquipCint"></canvas></div>
+        </div>
+      </div>
+      <div class="row">
+        <div class="panel">
+          <h3>Detalhamento RTK por equipamento (frota)</h3>
+          <div class="pdesc">As 3 métricas — uso RTK em E, uso E sem RTK e E com RTK zerado em cintilação — por código de equipamento.</div>
+          <div id="rtkEquipTable"></div>
+        </div>
+      </div>
     </div>
 
     <!-- ═══ ABA: CINTILAÇÃO ═══ -->
@@ -392,11 +417,24 @@
     <!-- ═══ ABA: FROTA ═══ -->
     <div class="tab-pane" id="pane-frota">
       <div class="tabtitle"><span class="ic">🚜</span>Frota</div>
-      <div class="panel">
-        <div class="placeholder">
-          <div class="big">🚜</div>
-          <p>Dados de frota não estão disponíveis nos arquivos RTK e Cintilação importados.<br><br>
-          Para habilitar esta aba, importe um arquivo com coluna de identificação de máquina/equipamento.</p>
+      <div class="kpirow kpirow4" id="kpirowFrota"></div>
+      <div class="row r2">
+        <div class="panel">
+          <h3>Horas por equipamento</h3>
+          <div class="pdesc">Total de horas em estado E por código de equipamento.</div>
+          <div class="chartbox xl"><canvas id="cFrotaBar"></canvas></div>
+        </div>
+        <div class="panel">
+          <h3>Exposição à cintilação por equipamento</h3>
+          <div class="pdesc">Horas operadas distribuídas por faixa de severidade.</div>
+          <div class="chartbox xl"><canvas id="cFrotaCint"></canvas></div>
+        </div>
+      </div>
+      <div class="row">
+        <div class="panel">
+          <h3>Detalhamento por equipamento</h3>
+          <div class="pdesc">Horas com RTK, sem RTK e exposição à cintilação crítica por equipamento.</div>
+          <div id="frotaTable"></div>
         </div>
       </div>
     </div>
@@ -410,6 +448,9 @@ const ORDER=['Sem cintilacao','Fraca','Moderada','Forte'];
 const COLOR={'Sem cintilacao':'#52a447','Fraca':'#e6a52e','Moderada':'#e8842c','Forte':'#d9534f'};
 const LABEL={'Sem cintilacao':'Sem cintilação','Fraca':'Fraca','Moderada':'Moderada','Forte':'Forte'};
 const DOW=['Dom','Seg','Ter','Qua','Qui','Sex','Sáb'];
+/* Base Operacional: código da atividade produtiva (estado E).
+   O USO de RTK em estado E é o "Tempo Efetivo" dessa operação. */
+const COD_PRODUTIVO=295;
 
 /* ── estado global ── */
 let rtkRows=null, sciData=null, usingDemo=true, activeTab='geral';
@@ -439,29 +480,59 @@ function exportPDF(){
     `Período: ${ini} → ${fim}${extras?'  |  '+extras:''}  |  Gerado: `+
     new Date().toLocaleDateString('pt-BR',{day:'2-digit',month:'2-digit',year:'numeric',hour:'2-digit',minute:'2-digit'});
 
-  // Substitui cada canvas por <img> PNG — canvas não imprime de forma confiável em todos os browsers
+  // Força todos os charts do pane ativo a redesenhar sem animação antes de capturar
   const pane=document.getElementById('pane-'+activeTab);
   const swaps=[];
+
+  // Desativa animações temporariamente e força redesenho completo de cada chart
   pane.querySelectorAll('canvas').forEach(canvas=>{
-    try{
-      const w=canvas.offsetWidth||canvas.width||600;
-      const h=canvas.offsetHeight||canvas.height||220;
-      const img=document.createElement('img');
-      img.src=canvas.toDataURL('image/png',1.0);
-      img.style.cssText=`width:${w}px;max-width:100%;height:${h}px;display:block`;
-      canvas.parentNode.replaceChild(img,canvas);
-      swaps.push({parent:img.parentNode,img,canvas});
-    }catch(e){}
+    const chartInstance=Object.values(Chart.instances||{}).find(c=>c.canvas===canvas);
+    if(chartInstance){
+      chartInstance.options.animation=false;
+      chartInstance.options.animations=false;
+      chartInstance.update('none'); // redesenha sem animação
+    }
   });
 
-  window.print();
+  // requestAnimationFrame garante que o browser pintou os charts antes de capturar
+  requestAnimationFrame(()=>{
+    requestAnimationFrame(()=>{
+      pane.querySelectorAll('canvas').forEach(canvas=>{
+        try{
+          const dataUrl=canvas.toDataURL('image/png',1.0);
+          if(!dataUrl||dataUrl.length<200)return; // descarta canvas em branco
+          const w=canvas.offsetWidth||canvas.scrollWidth||600;
+          const h=canvas.offsetHeight||canvas.scrollHeight||220;
+          const img=document.createElement('img');
+          img.src=dataUrl;
+          // width:100% para escalar ao layout do PDF; height:auto mantém proporção
+          img.style.cssText=`display:block;width:100%;height:auto;max-height:${h}px;`;
+          canvas.parentNode.replaceChild(img,canvas);
+          swaps.push({img,canvas});
+        }catch(e){console.warn('Falha ao capturar canvas:',e);}
+      });
 
-  // Restaura canvases após impressão
-  setTimeout(()=>{
-    swaps.forEach(({img,canvas})=>{
-      if(img.parentNode) img.parentNode.replaceChild(canvas,img);
+      // afterprint restaura canvases (mais confiável que setTimeout)
+      function restore(){
+        swaps.forEach(({img,canvas})=>{
+          try{if(img.parentNode)img.parentNode.replaceChild(canvas,img);}catch(e){}
+        });
+        // Reativa animações
+        pane.querySelectorAll('canvas').forEach(canvas=>{
+          const chartInstance=Object.values(Chart.instances||{}).find(c=>c.canvas===canvas);
+          if(chartInstance){
+            chartInstance.options.animation=undefined;
+            chartInstance.options.animations=undefined;
+          }
+        });
+        window.removeEventListener('afterprint',restore);
+      }
+      window.addEventListener('afterprint',restore);
+
+      // Pequeno delay após a troca DOM para o browser renderizar as <img> antes do print
+      setTimeout(()=>window.print(),120);
     });
-  },800);
+  });
 }
 
 /* ── helpers de parsing ── */
@@ -528,9 +599,12 @@ function parseRtk(text){
   const iL =H.findIndex(h=>h.includes('DATA/HORA LOCAL'));
   const iH =H.findIndex(h=>h==='HRS OPERACIONAIS');
   const iHs=H.findIndex(h=>h==='HRS OPERACIONAIS(SEC)');
-  const iT =H.findIndex(h=>/COD\.?\s*TALH/i.test(h));
-  const iZ =H.findIndex(h=>/COD\.?\s*ZONA/i.test(h));
-  const iG =H.findIndex(h=>/GRUPO\s*EQUIP/i.test(h));
+  const iT    =H.findIndex(h=>/COD\.?\s*TALH/i.test(h));
+  const iZ    =H.findIndex(h=>/COD\.?\s*ZONA/i.test(h));
+  const iG    =H.findIndex(h=>/GRUPO\s*EQUIP/i.test(h));
+  const iEq   =H.findIndex(h=>/COD\.?\s*EQUIP(?:AMENTO)?$|^EQUIPAMENTO$|^COD\.?\s*MAQ|^MAQUINA$/i.test(h));
+  const iHrtk =H.findIndex(h=>/HRS?\s*C[\/\s]\s*RTK|HRS?\s*COM\s*RTK/i.test(h));
+  const iHsrtk=H.findIndex(h=>/HRS?\s*S[\/\s]\s*RTK|HRS?\s*SEM\s*RTK/i.test(h));
 
   if(iE<0) throw new Error('Coluna ESTADO não encontrada no arquivo RTK.');
   if(iU<0&&iL<0) throw new Error('Coluna DATA/HORA não encontrada (esperado: DATA/HORA UTC ou DATA/HORA LOCAL).');
@@ -554,14 +628,106 @@ function parseRtk(text){
     if(isNaN(horas)&&iH>=0) horas=parseNum(c[iH]);
 
     if(!dt||isNaN(horas)||horas<=0){semData++;continue;}
-    const zona  =iZ>=0?(c[iZ]?.trim()||''):'';
-    const tal   =iT>=0?(c[iT]?.trim()||''):'';
-    const grupo =iG>=0?(c[iG]?.trim()||''):'';
-    // chave de frente: combina zona+talhão para identificação única
+    const zona        =iZ>=0?(c[iZ]?.trim()||''):'';
+    const tal         =iT>=0?(c[iT]?.trim()||''):'';
+    const grupo       =iG>=0?(c[iG]?.trim()||''):'';
+    const equipamento =iEq>=0?(c[iEq]?.trim()||''):'';
     const talhao=[zona,tal].filter(Boolean).join(' / ');
-    rows.push({dt, dateStr:dateKey(dt), horas, talhao, zona, tal, grupo});
+    let horasRtk=NaN, horasSemRtk=NaN;
+    if(iHrtk>=0&&c[iHrtk]!==undefined) horasRtk=parseNum(c[iHrtk]);
+    if(iHsrtk>=0&&c[iHsrtk]!==undefined) horasSemRtk=parseNum(c[iHsrtk]);
+    if(!isNaN(horasRtk)&&isNaN(horasSemRtk)) horasSemRtk=Math.max(0,horas-horasRtk);
+    if(isNaN(horasRtk)&&!isNaN(horasSemRtk)) horasRtk=Math.max(0,horas-horasSemRtk);
+    rows.push({dt, dateStr:dateKey(dt), horas, talhao, zona, tal, grupo, equipamento, horasRtk, horasSemRtk});
   }
 
+  rows._meta={totalE,semData};
+  return rows;
+}
+
+/* ── parser Base Operacional (planilha xlsx/csv) ──
+   Considera apenas a operação produtiva (CD Atividade = COD_PRODUTIVO).
+   Mapeia para a mesma estrutura usada pelo RTK:
+     • horas (estado E)  = Tempo Decimal  (tempo total da operação produtiva)
+     • horasRtk          = Tempo Efetivo  (USO do RTK em estado E)
+     • horasSemRtk        = Tempo Decimal − Tempo Efetivo                       */
+function parseDataCell(v){
+  if(v==null)return null;
+  if(v instanceof Date&&!isNaN(v))
+    return new Date(Date.UTC(v.getFullYear(),v.getMonth(),v.getDate()));
+  // número = data serial do Excel (epoch 1899-12-30; 25569 = dias até 1970-01-01)
+  if(typeof v==='number'&&isFinite(v)){
+    const d=new Date(Math.round((v-25569)*86400000));
+    return isNaN(d)?null:new Date(Date.UTC(d.getUTCFullYear(),d.getUTCMonth(),d.getUTCDate()));
+  }
+  const s=String(v).trim();
+  let m=s.match(/^(\d{4})-(\d{1,2})-(\d{1,2})/);
+  if(m)return new Date(Date.UTC(+m[1],+m[2]-1,+m[3]));
+  m=s.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})/);
+  if(m)return new Date(Date.UTC(+m[3],+m[2]-1,+m[1]));
+  const d=new Date(s);
+  return isNaN(d)?null:new Date(Date.UTC(d.getFullYear(),d.getMonth(),d.getDate()));
+}
+
+function parseBase(arrBuf){
+  const wb=XLSX.read(arrBuf,{type:'array'});
+  const wsName=wb.SheetNames.includes('Export')?'Export':wb.SheetNames[0];
+  const ws=wb.Sheets[wsName];
+  const aoa=XLSX.utils.sheet_to_json(ws,{header:1,raw:true,defval:null});
+  if(aoa.length<2)throw new Error('Planilha vazia.');
+
+  const norm=s=>String(s==null?'':s).toUpperCase().normalize('NFD')
+    .replace(/[̀-ͯ]/g,'').replace(/[^A-Z0-9]/g,'');
+  const H=aoa[0].map(norm);
+  const find=(...keys)=>{
+    for(const k of keys){const i=H.indexOf(norm(k));if(i>=0)return i;}
+    for(let i=0;i<H.length;i++)for(const k of keys)if(H[i].includes(norm(k)))return i;
+    return -1;
+  };
+  const iData =find('Data');
+  const iCd   =find('CD Atividade','CodAtividade');
+  const iEf   =find('Tempo Efetivo');
+  const iDec  =find('Tempo Decimal');
+  const iEq   =find('Equipamento');
+  const iFr   =find('Frente');
+  const iMod  =find('Modelo');
+  const iQd   =find('cod_quadra');
+  const iTl   =find('cod_talhao');
+
+  if(iData<0)throw new Error('Coluna "Data" não encontrada na planilha.');
+  if(iCd<0)  throw new Error('Coluna "CD Atividade" não encontrada na planilha.');
+  if(iEf<0&&iDec<0)throw new Error('Colunas de tempo ("Tempo Efetivo"/"Tempo Decimal") não encontradas.');
+
+  const rows=[];let totalE=0,semData=0;
+  for(let i=1;i<aoa.length;i++){
+    const c=aoa[i];if(!c)continue;
+    const cd=parseInt(String(c[iCd]).replace(/[^0-9-]/g,''),10);
+    if(cd!==COD_PRODUTIVO)continue;          // só a operação produtiva (estado E)
+    totalE++;
+
+    const dt=parseDataCell(c[iData]);
+    const efetivo=iEf>=0?parseNum(c[iEf]):NaN;       // USO do RTK em estado E
+    const decimal=iDec>=0?parseNum(c[iDec]):NaN;      // tempo total da operação
+    const horas=(!isNaN(decimal)&&decimal>0)?decimal:efetivo;
+    if(!dt||isNaN(horas)||horas<=0){semData++;continue;}
+
+    let horasRtk=NaN,horasSemRtk=NaN;
+    if(!isNaN(efetivo)){horasRtk=efetivo;horasSemRtk=Math.max(0,horas-efetivo);}
+
+    const frente     =iFr>=0?(c[iFr]!=null?String(c[iFr]).trim():''):'';
+    const modelo     =iMod>=0?(c[iMod]!=null?String(c[iMod]).trim():''):'';
+    const equipamento=iEq>=0?(c[iEq]!=null?String(c[iEq]).trim():''):'';
+    const quadra     =iQd>=0?(c[iQd]!=null?String(c[iQd]).trim():''):'';
+    const talhao     =iTl>=0?(c[iTl]!=null?String(c[iTl]).trim():''):'';
+
+    rows.push({dt,dateStr:dateKey(dt),horas,
+      talhao:frente,                 // filtro "Frente"
+      zona:quadra,tal:talhao,
+      grupo:modelo,                  // filtro "Grupo" = Modelo do equipamento
+      equipamento,horasRtk,horasSemRtk});
+  }
+  if(rows.length===0)
+    throw new Error(`Nenhum registro com CD Atividade = ${COD_PRODUTIVO} (operação produtiva) encontrado.`);
   rows._meta={totalE,semData};
   return rows;
 }
@@ -665,10 +831,16 @@ function makeDemo(){
         const dt=new Date(base);dt.setUTCDate(d+1);dt.setUTCHours(h);dt.setUTCMinutes(bb==='30'?40:10);
         const demoFrentes=['01 / 1001','01 / 1002','02 / 2001','02 / 2002'];
         const demoGrupos=['COLHEDORA','TRANSBORDO'];
+        const demoEquips=['EQ-001','EQ-002','EQ-003','EQ-004','EQ-005'];
         const fi=(d+Math.floor(slot/12))%demoFrentes.length;
-        rows.push({dt,dateStr:dk,horas:+(0.2+Math.random()*0.5).toFixed(2),
+        const hDemo=+(0.2+Math.random()*0.5).toFixed(2);
+        const horasRtk=+(hDemo*(0.55+Math.random()*0.45)).toFixed(2);
+        const horasSemRtk=+Math.max(0,hDemo-horasRtk).toFixed(2);
+        rows.push({dt,dateStr:dk,horas:hDemo,
           talhao:demoFrentes[fi],zona:'0'+((d%2)+1),tal:String(1001+(d%4)),
-          grupo:demoGrupos[fi%2]});
+          grupo:demoGrupos[fi%2],
+          equipamento:demoEquips[(d+Math.floor(slot/6))%demoEquips.length],
+          horasRtk,horasSemRtk});
       }
     }
   }
@@ -705,6 +877,40 @@ function load(input,kind){
   }catch(err){alert('Erro ao ler '+(kind==='rtk'?'RTK':'cintilação')+':\n'+err.message);}};
   r.readAsText(f,'utf-8');
 }
+/* preenche os selects de Grupo/Frente a partir das linhas carregadas */
+function popularSelects(rows){
+  const grupoSet=[...new Set(rows.map(r=>r.grupo).filter(Boolean))].sort();
+  const selG=document.getElementById('selGrupo');
+  selG.innerHTML='<option value="">Todos os grupos</option>'+
+    grupoSet.map(g=>`<option value="${g}">${g}</option>`).join('');
+  const frenteSet=[...new Set(rows.map(r=>r.talhao).filter(Boolean))].sort();
+  const sel=document.getElementById('selFrente');
+  sel.innerHTML='<option value="">Todas as frentes</option>'+
+    frenteSet.map(f=>`<option value="${f}">${f}</option>`).join('');
+}
+
+/* carrega a Base Operacional (xlsx/csv) */
+function loadBase(input){
+  const f=input.files[0];if(!f)return;
+  const r=new FileReader();
+  r.onload=e=>{try{
+    rtkRows=parseBase(e.target.result);
+    document.getElementById('btnBase').classList.add('done');
+    document.getElementById('btnBase').firstChild.textContent='Base ✓ ';
+    popularSelects(rtkRows);
+    // ajusta o período para a cobertura da base importada
+    const dates=[...new Set(rtkRows.map(r=>r.dateStr))].sort();
+    if(dates.length){
+      document.getElementById('dtIni').value=dates[0];
+      document.getElementById('dtFim').value=dates[dates.length-1];
+    }
+    if(rtkRows&&sciData){usingDemo=false;document.getElementById('demoFlag').textContent='';}
+    else document.getElementById('demoFlag').textContent=' · importe a cintilação para cruzar';
+    render();
+  }catch(err){alert('Erro ao ler Base Operacional:\n'+err.message);}};
+  r.readAsArrayBuffer(f);
+}
+document.getElementById('fileBase').addEventListener('change',function(){loadBase(this);});
 document.getElementById('fileRtk').addEventListener('change',function(){load(this,'rtk');});
 document.getElementById('fileSci').addEventListener('change',function(){load(this,'sci');});
 document.getElementById('dtIni').addEventListener('change',render);
@@ -732,15 +938,31 @@ function aggregate(rows, sd){
   const porDia={};
   const porDow=Array.from({length:7},()=>({'Sem cintilacao':0,Fraca:0,Moderada:0,Forte:0}));
   const porDiaRtk={};
+  const porEquipamento={};
   let total=0,nMatch=0,nSemCint=0;
+  let totalHorasRtk=0,totalHorasSemRtk=0,totalHorasSemRtkCint=0,hasRtkData=false;
 
   for(const r of rf){
     const dk=r.dateStr;
     if(!porDiaRtk[dk])porDiaRtk[dk]=0;
     porDiaRtk[dk]+=r.horas;
 
+    // acumula equipamento e RTK para todos os registros (independe de cintilação)
+    const eq=r.equipamento||'(sem código)';
+    if(!porEquipamento[eq])porEquipamento[eq]={'Sem cintilacao':0,Fraca:0,Moderada:0,Forte:0,horas:0,horasRtk:0,horasSemRtk:0,horasSemRtkCint:0};
+    porEquipamento[eq].horas+=r.horas;
+    if(!isNaN(r.horasRtk)){totalHorasRtk+=r.horasRtk;hasRtkData=true;porEquipamento[eq].horasRtk+=r.horasRtk;}
+    if(!isNaN(r.horasSemRtk)){totalHorasSemRtk+=r.horasSemRtk;porEquipamento[eq].horasSemRtk+=r.horasSemRtk;}
+
     const dist=sd.dayDist.get(dk);
     if(!dist||dist.total===0){nSemCint++;continue;}
+
+    // horas sem RTK durante período com cintilação ativa
+    if(!isNaN(r.horasSemRtk)&&dist.total>0){
+      const fracCint=(dist['Fraca']+dist['Moderada']+dist['Forte'])/dist.total;
+      totalHorasSemRtkCint+=r.horasSemRtk*fracCint;
+      porEquipamento[eq].horasSemRtkCint+=r.horasSemRtk*fracCint;
+    }
 
     total+=r.horas;
     nMatch++;
@@ -754,6 +976,7 @@ function aggregate(rows, sd){
       horas[e]+=h;
       porDia[dk][e]+=h;
       porDow[dow][e]+=h;
+      porEquipamento[eq][e]+=h;
       // distribui por hora do dia baseado no padrão de cintilação daquele dia
       for(let hr=0;hr<24;hr++){
         const hf=dist.byHour[hr][e]/dist.total;
@@ -773,7 +996,8 @@ function aggregate(rows, sd){
 
   return{horas,porHora,porDia,porDow,porDiaRtk,total,nMatch,rf,
     forte:horas['Forte'],degr:horas['Moderada']+horas['Forte'],
-    meta:rows._meta||{totalE:rf.length,semData:0}};
+    meta:rows._meta||{totalE:rf.length,semData:0},
+    totalHorasRtk,totalHorasSemRtk,totalHorasSemRtkCint,hasRtkData,porEquipamento};
 }
 
 /* ── informativo de datas disponíveis ── */
@@ -866,6 +1090,7 @@ function renderTab(tab,a){
   else if(tab==='cintilacao')renderCintilacao(a);
   else if(tab==='horas')    renderHoras(a);
   else if(tab==='risco')    renderRisco(a);
+  else if(tab==='frota')    renderFrota(a);
 }
 
 /* ── helpers de chart ── */
@@ -879,6 +1104,10 @@ function cd(){
   Chart.defaults.font.family="'Segoe UI',sans-serif";
   Chart.defaults.borderColor='#e2e6e2';
   Chart.defaults.font.size=11;
+  // sem animação — charts prontos imediatamente e seguros para toDataURL()
+  Chart.defaults.animation=false;
+  Chart.defaults.animations=false;
+  Chart.defaults.transitions={};
 }
 const hrs24=[...Array(24).keys()];
 const hrs24L=hrs24.map(h=>String(h).padStart(2,'0')+'h');
@@ -933,7 +1162,7 @@ function renderGeral(a){
 /* ════ RTK ════ */
 function renderRtk(a){
   cd();
-  const{porDiaRtk,porHora,total,nMatch,rf,meta}=a;
+  const{porDiaRtk,porHora,total,nMatch,rf,meta,totalHorasRtk,totalHorasSemRtk,totalHorasSemRtkCint,hasRtkData,porEquipamento}=a;
   const dias=Object.keys(porDiaRtk).sort();
   const totalRtk=Object.values(porDiaRtk).reduce((s,v)=>s+v,0);
   const media=dias.length?totalRtk/dias.length:0;
@@ -970,6 +1199,104 @@ function renderRtk(a){
     top10.map((r,i)=>`<tr><td>${i+1}</td><td>${r.d}</td><td>${r.v.toFixed(2)}h</td>
       <td>${totalRtk?(r.v/totalRtk*100).toFixed(1):0}%</td></tr>`).join('')+
     '</tbody></table>';
+
+  // painel das 3 métricas RTK
+  const mp=document.getElementById('rtkMetricsPanel');
+  if(mp){
+    if(hasRtkData){
+      const pctRtk=totalRtk?((totalHorasRtk/totalRtk)*100).toFixed(1):'—';
+      const pctSemRtk=totalRtk?((totalHorasSemRtk/totalRtk)*100).toFixed(1):'—';
+      const pctSemRtkCint=totalHorasSemRtk?((totalHorasSemRtkCint/totalHorasSemRtk)*100).toFixed(1):'—';
+      mp.innerHTML=`
+        <h3>Métricas de Uso RTK — Estado E</h3>
+        <div class="pdesc">As 3 categorias de uso de correção RTK nas operações.</div>
+        <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-top:10px">
+          <div class="kpi" style="border-top-color:#52a447">
+            <div class="h">Uso RTK em Estado E <span class="spark">📡</span></div>
+            <div class="big" style="color:#52a447">${totalHorasRtk.toFixed(1)}h</div>
+            <div class="sec">${pctRtk}% das horas</div>
+            <div class="meta">horas operadas com correção RTK ativa</div>
+            <div class="barbg"><div class="barfg" style="width:${Math.min(100,+pctRtk)}%;background:#52a447"></div></div>
+          </div>
+          <div class="kpi" style="border-top-color:#e8842c">
+            <div class="h">Uso E sem RTK <span class="spark">⚠️</span></div>
+            <div class="big" style="color:#e8842c">${totalHorasSemRtk.toFixed(1)}h</div>
+            <div class="sec">${pctSemRtk}% das horas</div>
+            <div class="meta">horas em estado E sem correção RTK</div>
+            <div class="barbg"><div class="barfg" style="width:${Math.min(100,+pctSemRtk)}%;background:#e8842c"></div></div>
+          </div>
+          <div class="kpi" style="border-top-color:#d9534f">
+            <div class="h">Estado E com RTK Zerado em Cintilação <span class="spark">🌙</span></div>
+            <div class="big" style="color:#d9534f">${totalHorasSemRtkCint.toFixed(1)}h</div>
+            <div class="sec">${pctSemRtkCint}% do tempo sem RTK</div>
+            <div class="meta">sem RTK durante blocos com cintilação ativa</div>
+            <div class="barbg"><div class="barfg" style="width:${Math.min(100,+pctSemRtkCint)}%;background:#d9534f"></div></div>
+          </div>
+        </div>`;
+    }else{
+      mp.innerHTML=`
+        <h3>Métricas de Uso RTK — Estado E</h3>
+        <div class="placeholder" style="padding:22px 20px">
+          <p>Colunas de horas com/sem RTK não encontradas no arquivo.<br>
+          Para habilitar, verifique se o arquivo possui colunas como <b>HRS C/ RTK</b> e <b>HRS S/ RTK</b>.</p>
+        </div>`;
+    }
+  }
+
+  // ── detalhamento das 3 métricas RTK por equipamento (frota) ──
+  const equips=Object.keys(porEquipamento).sort((x,y)=>porEquipamento[y].horas-porEquipamento[x].horas);
+  const semCodigo=equips.length===0||(equips.length===1&&equips[0]==='(sem código)');
+  const topEquips=equips.slice(0,20);
+
+  if(hasRtkData&&!semCodigo){
+    mkChart('cRtkEquip',{type:'bar',
+      data:{labels:topEquips,datasets:[
+        {label:'Com RTK',data:topEquips.map(eq=>+porEquipamento[eq].horasRtk.toFixed(2)),backgroundColor:'#52a447'},
+        {label:'Sem RTK',data:topEquips.map(eq=>+porEquipamento[eq].horasSemRtk.toFixed(2)),backgroundColor:'#e8842c'}
+      ]},
+      options:{indexAxis:'y',plugins:{legend:{position:'top',labels:{boxWidth:11,padding:10}}},
+        scales:{x:{stacked:true,beginAtZero:true,title:{display:true,text:'horas'}},
+                y:{stacked:true,grid:{display:false},ticks:{font:{size:10}}}}}});
+
+    mkChart('cRtkEquipCint',{type:'bar',
+      data:{labels:topEquips,datasets:[{label:'E sem RTK em cintilação',
+        data:topEquips.map(eq=>+porEquipamento[eq].horasSemRtkCint.toFixed(2)),backgroundColor:'#d9534f',borderRadius:3}]},
+      options:{indexAxis:'y',plugins:{legend:{display:false}},
+        scales:{x:{beginAtZero:true,title:{display:true,text:'horas'}},
+                y:{grid:{display:false},ticks:{font:{size:10}}}}}});
+  }else{
+    if(charts['cRtkEquip'])charts['cRtkEquip'].destroy();
+    if(charts['cRtkEquipCint'])charts['cRtkEquipCint'].destroy();
+  }
+
+  const te=document.getElementById('rtkEquipTable');
+  if(te){
+    if(semCodigo){
+      te.innerHTML='<div class="placeholder" style="padding:22px 20px"><p>Nenhum código de equipamento encontrado no arquivo RTK.<br>'+
+        'Verifique se há coluna de identificação de equipamento (COD. EQUIP, EQUIPAMENTO, COD. MAQUINA).</p></div>';
+    }else{
+      te.innerHTML=
+        `<table class="tbl"><thead><tr>
+          <th>#</th><th>Equipamento</th><th>Total E (h)</th>
+          <th>Uso RTK em E (h)</th><th>Uso E sem RTK (h)</th><th>% RTK</th>
+          <th>E s/ RTK em Cintilação (h)</th>
+        </tr></thead><tbody>`+
+        equips.map((eq,i)=>{
+          const r=porEquipamento[eq];
+          const pctRtk=r.horas&&hasRtkData?r.horasRtk/r.horas*100:0;
+          return `<tr>
+            <td>${i+1}</td>
+            <td><b>${eq}</b></td>
+            <td>${r.horas.toFixed(2)}h</td>
+            <td>${hasRtkData?r.horasRtk.toFixed(2)+'h':'—'}</td>
+            <td>${hasRtkData?r.horasSemRtk.toFixed(2)+'h':'—'}</td>
+            <td>${hasRtkData?`<span style="color:${pctRtk>=80?'#52a447':pctRtk>=50?'#e6a52e':'#d9534f'};font-weight:700">${pctRtk.toFixed(1)}%</span>`:'—'}</td>
+            <td><span class="dot" style="background:#d9534f"></span>${hasRtkData?r.horasSemRtkCint.toFixed(2)+'h':'—'}</td>
+          </tr>`;
+        }).join('')+
+        '</tbody></table>';
+    }
+  }
 }
 
 /* ════ CINTILAÇÃO ════ */
@@ -1027,6 +1354,85 @@ function renderHoras(a){
       backgroundColor:DOW.map((_,i)=>i===0||i===6?'#e8842c':'#52a447'),borderRadius:4}]},
     options:{plugins:{legend:{display:false}},
       scales:{x:{grid:{display:false}},y:{beginAtZero:true,title:{display:true,text:'horas'}}}}});
+}
+
+/* ════ FROTA ════ */
+function renderFrota(a){
+  cd();
+  const{porEquipamento,hasRtkData}=a;
+  const equips=Object.keys(porEquipamento).sort((x,y)=>porEquipamento[y].horas-porEquipamento[x].horas);
+
+  if(equips.length===0||equips.every(eq=>eq==='(sem código)'&&equips.length===1)){
+    document.getElementById('kpirowFrota').innerHTML='';
+    document.getElementById('frotaTable').innerHTML=
+      '<div class="placeholder"><div class="big">🚜</div>'+
+      '<p>Nenhum código de equipamento encontrado no arquivo RTK.<br><br>'+
+      'Verifique se o arquivo possui coluna de identificação de equipamento<br>(COD. EQUIP, EQUIPAMENTO, COD. MAQUINA, etc.).</p></div>';
+    if(charts['cFrotaBar'])charts['cFrotaBar'].destroy();
+    if(charts['cFrotaCint'])charts['cFrotaCint'].destroy();
+    return;
+  }
+
+  const totHoras=equips.reduce((s,eq)=>s+porEquipamento[eq].horas,0);
+  const mediaHoras=equips.length?totHoras/equips.length:0;
+  const topEq=equips[0]||'—';
+
+  document.getElementById('kpirowFrota').innerHTML=[
+    {h:'Total de Equipamentos',big:equips.length,meta:'códigos únicos identificados',col:'var(--green)'},
+    {h:'Horas Totais',big:totHoras.toFixed(1)+'h',meta:'estado E — todos os equipamentos',col:'var(--green)'},
+    {h:'Média por Equipamento',big:mediaHoras.toFixed(1)+'h',meta:'horas médias/equipamento',col:'var(--amber)'},
+    {h:'Equipamento Mais Ativo',big:topEq,meta:porEquipamento[topEq]?porEquipamento[topEq].horas.toFixed(1)+'h':'',col:'var(--rail)'},
+  ].map(k=>`<div class="kpi" style="border-top-color:${k.col}">
+    <div class="h">${k.h}</div>
+    <div class="big" style="color:${k.col};font-size:${String(k.big).length>8?'14px':'23px'}">${k.big}</div>
+    <div class="meta">${k.meta}</div>
+  </div>`).join('');
+
+  // limita chart a top 20 para legibilidade
+  const topEquips=equips.slice(0,20);
+
+  mkChart('cFrotaBar',{type:'bar',
+    data:{labels:topEquips,datasets:[{label:'Horas',
+      data:topEquips.map(eq=>+porEquipamento[eq].horas.toFixed(2)),
+      backgroundColor:'#52a447',borderRadius:3}]},
+    options:{indexAxis:'y',plugins:{legend:{display:false}},
+      scales:{x:{beginAtZero:true,title:{display:true,text:'horas'}},
+              y:{grid:{display:false},ticks:{font:{size:10}}}}}});
+
+  mkChart('cFrotaCint',{type:'bar',
+    data:{labels:topEquips,datasets:ORDER.map(e=>({label:LABEL[e],
+      data:topEquips.map(eq=>+(porEquipamento[eq][e]||0).toFixed(2)),backgroundColor:COLOR[e]}))},
+    options:{indexAxis:'y',plugins:{legend:{position:'top',labels:{boxWidth:11,padding:10}}},
+      scales:{x:{stacked:true,beginAtZero:true,title:{display:true,text:'horas'}},
+              y:{stacked:true,grid:{display:false},ticks:{font:{size:10}}}}}});
+
+  document.getElementById('frotaTable').innerHTML=
+    `<table class="tbl"><thead><tr>
+      <th>#</th><th>Equipamento</th><th>Total (h)</th>
+      ${hasRtkData?'<th>Com RTK (h)</th><th>Sem RTK (h)</th><th>% RTK</th>':''}
+      <th>Sem Cint.</th><th>Fraca</th><th>Moderada</th><th>Forte</th><th>% Risco (Mod+Forte)</th>
+    </tr></thead><tbody>`+
+    equips.map((eq,i)=>{
+      const r=porEquipamento[eq];
+      const degr=(r['Moderada']||0)+(r['Forte']||0);
+      const pctRisco=r.horas?degr/r.horas*100:0;
+      const pctRtk=r.horas&&hasRtkData?r.horasRtk/r.horas*100:0;
+      return `<tr>
+        <td>${i+1}</td>
+        <td><b>${eq}</b></td>
+        <td>${r.horas.toFixed(2)}h</td>
+        ${hasRtkData?`
+          <td>${r.horasRtk>0?r.horasRtk.toFixed(2)+'h':'—'}</td>
+          <td>${r.horasSemRtk>0?r.horasSemRtk.toFixed(2)+'h':'—'}</td>
+          <td><span style="color:${pctRtk>=80?'#52a447':pctRtk>=50?'#e6a52e':'#d9534f'};font-weight:700">${pctRtk.toFixed(1)}%</span></td>`:''}
+        <td>${(r['Sem cintilacao']||0).toFixed(2)}h</td>
+        <td>${(r['Fraca']||0).toFixed(2)}h</td>
+        <td>${(r['Moderada']||0).toFixed(2)}h</td>
+        <td>${(r['Forte']||0).toFixed(2)}h</td>
+        <td><span style="color:${pctRisco>30?'#d9534f':pctRisco>15?'#e8842c':'#52a447'};font-weight:700">${pctRisco.toFixed(1)}%</span></td>
+      </tr>`;
+    }).join('')+
+    '</tbody></table>';
 }
 
 /* ── risco regional baseado na base de cintilação (0,5h por bloco de 30min) ── */
