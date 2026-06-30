@@ -482,9 +482,10 @@ const ORDER=['Sem cintilacao','Fraca','Moderada','Forte'];
 const COLOR={'Sem cintilacao':'#52a447','Fraca':'#e6a52e','Moderada':'#e8842c','Forte':'#d9534f'};
 const LABEL={'Sem cintilacao':'Sem cintilação','Fraca':'Fraca','Moderada':'Moderada','Forte':'Forte'};
 const DOW=['Dom','Seg','Ter','Qua','Qui','Sex','Sáb'];
-/* Base Operacional: código da atividade produtiva (estado E).
-   O USO de RTK em estado E é o "Tempo Efetivo" dessa operação. */
-const COD_PRODUTIVO=295;
+/* Base Operacional: códigos das atividades produtivas (estado E).
+   295 = CORTE CANA MECANIZADO · 227 = CARREGAMENTO TRANSBORDO.
+   O USO de RTK em estado E é o "Tempo Efetivo" dessas operações. */
+const COD_PRODUTIVO=[295,227];
 /* ordena frentes pelo número (FRENTE 2,3,4,5,6,7,8...); sem número vai para o fim */
 function frenteNum(f){const m=String(f).match(/\d+/);return m?+m[0]:9999;}
 const cmpFrente=(a,b)=>frenteNum(a)-frenteNum(b)||String(a).localeCompare(b);
@@ -741,7 +742,7 @@ function parseBase(arrBuf){
   for(let i=1;i<aoa.length;i++){
     const c=aoa[i];if(!c)continue;
     const cd=parseInt(String(c[iCd]).replace(/[^0-9-]/g,''),10);
-    if(cd!==COD_PRODUTIVO)continue;          // só a operação produtiva (estado E)
+    if(!COD_PRODUTIVO.includes(cd))continue;  // só as operações produtivas (estado E): 295 e 227
     totalE++;
 
     const dt=parseDataCell(c[iData]);
@@ -771,7 +772,7 @@ function parseBase(arrBuf){
       equipamento,horasRtk,horasSemRtk});
   }
   if(rows.length===0)
-    throw new Error(`Nenhum registro com CD Atividade = ${COD_PRODUTIVO} (operação produtiva) encontrado.`);
+    throw new Error(`Nenhum registro com CD Atividade em ${COD_PRODUTIVO.join(' / ')} (operações produtivas) encontrado.`);
   rows._meta={totalE,semData};
   return rows;
 }
