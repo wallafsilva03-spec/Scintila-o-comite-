@@ -1037,6 +1037,16 @@ function aggregate(rows, sd){
   if(ini){const di=new Date(ini+'T00:00:00Z');rf=rf.filter(r=>r.dt>=di);}
   if(fim){const df=new Date(fim+'T23:59:59Z');rf=rf.filter(r=>r.dt<=df);}
 
+  // estado E somente em áreas COM PROJETO (quando o status de projetos foi importado)
+  const hasProjData=!!projData;
+  if(hasProjData)rf=rf.filter(r=>{const p=projData.map.get(r.fazendaCod);return !!(p&&p.temProjeto);});
+
+  // cada equipamento é alocado a UMA frente — a última (data mais recente) no período
+  const frenteDoEquip={};
+  {const ultDt={};
+   for(const r of rf){const eq=r.equipamento||'(sem código)';
+     if(ultDt[eq]===undefined||r.dt>=ultDt[eq]){ultDt[eq]=r.dt;frenteDoEquip[eq]=r.talhao||'(sem frente)';}}}
+
   const horas={'Sem cintilacao':0,Fraca:0,Moderada:0,Forte:0};
   const porHora=Array.from({length:24},()=>({'Sem cintilacao':0,Fraca:0,Moderada:0,Forte:0}));
   const porDia={};
@@ -1049,7 +1059,6 @@ function aggregate(rows, sd){
   let total=0,nMatch=0,nSemCint=0;
   let totalHorasRtk=0,totalHorasSemRtk=0,totalHorasSemRtkCint=0,hasRtkData=false;
   // projetos: uso de piloto somente em áreas com projeto (cruzamento por FA = código da fazenda)
-  const hasProjData=!!projData;
   let totalHorasProjeto=0,totalPilotoProjeto=0;
   const fazProjGlobal=new Set();   // fazendas (com projeto) operadas no período
   const frenteFaz={};               // frente → Set de fazendas com projeto
@@ -1066,8 +1075,8 @@ function aggregate(rows, sd){
     if(!isNaN(r.horasRtk)){totalHorasRtk+=r.horasRtk;hasRtkData=true;porEquipamento[eq].horasRtk+=r.horasRtk;}
     if(!isNaN(r.horasSemRtk)){totalHorasSemRtk+=r.horasSemRtk;porEquipamento[eq].horasSemRtk+=r.horasSemRtk;}
 
-    // acumula por FRENTE (mesma lógica do equipamento)
-    const fr=r.talhao||'(sem frente)';
+    // acumula por FRENTE — usa a ÚLTIMA frente alocada ao equipamento (sem duplicar)
+    const fr=frenteDoEquip[eq]||r.talhao||'(sem frente)';
     if(!porFrente[fr])porFrente[fr]=novaMetrica();
     porFrente[fr].horas+=r.horas;
     if(!isNaN(r.horasRtk))porFrente[fr].horasRtk+=r.horasRtk;
