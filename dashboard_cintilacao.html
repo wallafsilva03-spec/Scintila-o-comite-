@@ -646,11 +646,11 @@ function parseRtk(text){
 }
 
 /* ── parser Base Operacional (planilha xlsx/csv) ──
-   Considera apenas a operação produtiva (CD Atividade = COD_PRODUTIVO).
+   Considera SOMENTE a operação produtiva (CD Atividade = COD_PRODUTIVO).
    Mapeia para a mesma estrutura usada pelo RTK:
-     • horas (estado E)  = Tempo Decimal  (tempo total da operação produtiva)
-     • horasRtk          = Tempo Efetivo  (USO do RTK em estado E)
-     • horasSemRtk        = Tempo Decimal − Tempo Efetivo                       */
+     • horas (estado E) = Tempo Efetivo  (tempo efetivo da operação 295)
+     • horasRtk          = Tempo Efetivo  (USO do RTK em estado E = todo o estado E)
+     • horasSemRtk        = 0                                                     */
 function parseDataCell(v){
   if(v==null)return null;
   if(v instanceof Date&&!isNaN(v))
@@ -687,7 +687,6 @@ function parseBase(arrBuf){
   const iData =find('Data');
   const iCd   =find('CD Atividade','CodAtividade');
   const iEf   =find('Tempo Efetivo');
-  const iDec  =find('Tempo Decimal');
   const iEq   =find('Equipamento');
   const iFr   =find('Frente');
   const iMod  =find('Modelo');
@@ -696,7 +695,7 @@ function parseBase(arrBuf){
 
   if(iData<0)throw new Error('Coluna "Data" não encontrada na planilha.');
   if(iCd<0)  throw new Error('Coluna "CD Atividade" não encontrada na planilha.');
-  if(iEf<0&&iDec<0)throw new Error('Colunas de tempo ("Tempo Efetivo"/"Tempo Decimal") não encontradas.');
+  if(iEf<0)  throw new Error('Coluna "Tempo Efetivo" não encontrada na planilha.');
 
   const rows=[];let totalE=0,semData=0;
   for(let i=1;i<aoa.length;i++){
@@ -706,13 +705,12 @@ function parseBase(arrBuf){
     totalE++;
 
     const dt=parseDataCell(c[iData]);
-    const efetivo=iEf>=0?parseNum(c[iEf]):NaN;       // USO do RTK em estado E
-    const decimal=iDec>=0?parseNum(c[iDec]):NaN;      // tempo total da operação
-    const horas=(!isNaN(decimal)&&decimal>0)?decimal:efetivo;
+    const efetivo=parseNum(c[iEf]);                   // tempo efetivo da operação 295 = estado E
+    const horas=efetivo;
     if(!dt||isNaN(horas)||horas<=0){semData++;continue;}
 
-    let horasRtk=NaN,horasSemRtk=NaN;
-    if(!isNaN(efetivo)){horasRtk=efetivo;horasSemRtk=Math.max(0,horas-efetivo);}
+    // todo o tempo efetivo em estado E corresponde ao uso de RTK
+    const horasRtk=horas,horasSemRtk=0;
 
     const frente     =iFr>=0?(c[iFr]!=null?String(c[iFr]).trim():''):'';
     const modelo     =iMod>=0?(c[iMod]!=null?String(c[iMod]).trim():''):'';
