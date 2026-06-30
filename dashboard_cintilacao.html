@@ -932,8 +932,9 @@ function loadBase(input){
       document.getElementById('dtIni').value=dates[0];
       document.getElementById('dtFim').value=dates[dates.length-1];
     }
-    if(rtkRows&&sciData){usingDemo=false;document.getElementById('demoFlag').textContent='';}
-    else document.getElementById('demoFlag').textContent=' · importe a cintilação para cruzar';
+    // sai do modo demo assim que a base é importada (cintilação é opcional p/ o cruzamento)
+    usingDemo=false;
+    document.getElementById('demoFlag').textContent=sciData?'':' · importe a cintilação para o cruzamento';
     render();
   }catch(err){alert('Erro ao ler Base Operacional:\n'+err.message);}};
   r.readAsArrayBuffer(f);
@@ -1124,6 +1125,8 @@ function render(){
     if(selG.options.length<=1)
       selG.innerHTML='<option value="">Todos os grupos</option>'+grupoSet.map(g=>`<option value="${g}">${g}</option>`).join('');
   }
+  // base importada sem cintilação: usa mapa vazio para não quebrar o cruzamento
+  if(!sd)sd={blockMap:new Map(),dayDist:new Map()};
   // filtro global por grupo de equipamento
   const grupo=document.getElementById('selGrupo').value;
   const rowsFilt=grupo?rows.filter(r=>r.grupo===grupo):rows;
