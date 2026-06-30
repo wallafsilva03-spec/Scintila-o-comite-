@@ -485,6 +485,9 @@ const DOW=['Dom','Seg','Ter','Qua','Qui','Sex','Sáb'];
 /* Base Operacional: código da atividade produtiva (estado E).
    O USO de RTK em estado E é o "Tempo Efetivo" dessa operação. */
 const COD_PRODUTIVO=295;
+/* ordena frentes pelo número (FRENTE 2,3,4,5,6,7,8...); sem número vai para o fim */
+function frenteNum(f){const m=String(f).match(/\d+/);return m?+m[0]:9999;}
+const cmpFrente=(a,b)=>frenteNum(a)-frenteNum(b)||String(a).localeCompare(b);
 
 /* ── estado global ── */
 let rtkRows=null, sciData=null, projData=null, usingDemo=true, activeTab='geral';
@@ -1330,8 +1333,8 @@ function renderRtk(a){
   const media=dias.length?totalRtk/dias.length:0;
 
   document.getElementById('kpirowRtk').innerHTML=[
-    {h:'Registros estado E',big:meta.totalE,meta:'linhas filtradas',col:'var(--green)'},
-    {h:'Horas Totais',big:totalRtk.toFixed(1)+'h',meta:`${dias.length} dias operados`,col:'var(--green)'},
+    {h:'Registros estado E',big:rf.length,meta:hasProjData?'linhas — só áreas com projeto':'linhas filtradas',col:'var(--green)'},
+    {h:'Horas Totais',big:totalRtk.toFixed(1)+'h',meta:`${dias.length} dias operados${hasProjData?' · só projeto':''}`,col:'var(--green)'},
     {h:'Média por Dia',big:media.toFixed(2)+'h',meta:'horas/dia operado',col:'var(--amber)'},
     {h:'Sem data válida',big:meta.semData,meta:'registros descartados',col:'var(--faint)'},
   ].map(k=>`<div class="kpi" style="border-top-color:${k.col}">
@@ -1419,7 +1422,7 @@ function renderRtk(a){
     }else{
       const pctPilProj=totalHorasProjeto&&hasRtkData?(totalPilotoProjeto/totalHorasProjeto*100):null;
       const pctAreaProj=projResumo.totalArea?(projResumo.totalAreaProjeto/projResumo.totalArea*100):0;
-      const frentes=Object.keys(frenteAreaProjeto).sort((x,y)=>(porFrente[y].horasProjeto||0)-(porFrente[x].horasProjeto||0));
+      const frentes=Object.keys(frenteAreaProjeto).sort(cmpFrente);
       const kpis=[
         {h:'Área com Projeto',big:areaComProjeto.toLocaleString('pt-BR',{maximumFractionDigits:0})+' ha',meta:`${projResumo.fazOperadas} fazendas operadas no período`,col:'#52a447'},
         {h:'Horas E em Áreas c/ Projeto',big:totalHorasProjeto.toFixed(1)+'h',meta:'tempo efetivo (op. 295) em projeto',col:'var(--rail)'},
@@ -1511,7 +1514,7 @@ function renderRtk(a){
   }
 
   // ── separação por FRENTE ──
-  const frentes=Object.keys(porFrente).sort((x,y)=>porFrente[y].horas-porFrente[x].horas);
+  const frentes=Object.keys(porFrente).sort(cmpFrente);
   const semFrente=frentes.length===0||(frentes.length===1&&frentes[0]==='(sem frente)');
 
   if(hasRtkData&&!semFrente){
