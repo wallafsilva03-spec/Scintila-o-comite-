@@ -95,6 +95,11 @@
   .tbl tr:last-child td{border-bottom:none}
   .tbl tr:hover td{background:var(--bg)}
   .dot{width:8px;height:8px;border-radius:50%;display:inline-block;margin-right:4px;vertical-align:middle}
+  /* linha de cabeçalho de grupo (frente) na tabela hierárquica */
+  .tbl tr.grp td{background:var(--rail);color:#cfe0d4;font-weight:700;border-bottom:1px solid var(--rail2)}
+  .tbl tr.grp td b{color:#fff}
+  .tbl tr.sub td:first-child{padding-left:22px;color:var(--dim)}
+  .tbl tr.sub td:nth-child(2){color:var(--ink)}
 
   /* ── placeholder ── */
   .placeholder{text-align:center;padding:60px 20px;color:var(--faint)}
@@ -336,8 +341,8 @@
       </div>
       <div class="row">
         <div class="panel">
-          <h3>Detalhamento RTK por frente</h3>
-          <div class="pdesc">As 3 métricas — uso RTK em E, uso E sem RTK e E com RTK zerado em cintilação — por frente.</div>
+          <h3>Detalhamento RTK por frente e equipamento</h3>
+          <div class="pdesc">Cada frente com seus equipamentos logo abaixo — uso RTK em E, uso E sem RTK e E com RTK zerado em cintilação.</div>
           <div id="rtkFrenteTable"></div>
         </div>
       </div>
@@ -963,6 +968,8 @@ function aggregate(rows, sd){
   const porDiaRtk={};
   const porEquipamento={};
   const porFrente={};
+  const porFrenteEquip={};   // frente → { equipamento → métricas }
+  const novaMetrica=()=>({'Sem cintilacao':0,Fraca:0,Moderada:0,Forte:0,horas:0,horasRtk:0,horasSemRtk:0,horasSemRtkCint:0});
   let total=0,nMatch=0,nSemCint=0;
   let totalHorasRtk=0,totalHorasSemRtk=0,totalHorasSemRtkCint=0,hasRtkData=false;
 
@@ -980,10 +987,18 @@ function aggregate(rows, sd){
 
     // acumula por FRENTE (mesma lógica do equipamento)
     const fr=r.talhao||'(sem frente)';
-    if(!porFrente[fr])porFrente[fr]={'Sem cintilacao':0,Fraca:0,Moderada:0,Forte:0,horas:0,horasRtk:0,horasSemRtk:0,horasSemRtkCint:0};
+    if(!porFrente[fr])porFrente[fr]=novaMetrica();
     porFrente[fr].horas+=r.horas;
     if(!isNaN(r.horasRtk))porFrente[fr].horasRtk+=r.horasRtk;
     if(!isNaN(r.horasSemRtk))porFrente[fr].horasSemRtk+=r.horasSemRtk;
+
+    // acumula por FRENTE → EQUIPAMENTO (visão hierárquica)
+    if(!porFrenteEquip[fr])porFrenteEquip[fr]={};
+    if(!porFrenteEquip[fr][eq])porFrenteEquip[fr][eq]=novaMetrica();
+    const fe=porFrenteEquip[fr][eq];
+    fe.horas+=r.horas;
+    if(!isNaN(r.horasRtk))fe.horasRtk+=r.horasRtk;
+    if(!isNaN(r.horasSemRtk))fe.horasSemRtk+=r.horasSemRtk;
 
     const dist=sd.dayDist.get(dk);
     if(!dist||dist.total===0){nSemCint++;continue;}
@@ -994,6 +1009,7 @@ function aggregate(rows, sd){
       totalHorasSemRtkCint+=r.horasSemRtk*fracCint;
       porEquipamento[eq].horasSemRtkCint+=r.horasSemRtk*fracCint;
       porFrente[fr].horasSemRtkCint+=r.horasSemRtk*fracCint;
+      porFrenteEquip[fr][eq].horasSemRtkCint+=r.horasSemRtk*fracCint;
     }
 
     total+=r.horas;
@@ -1010,6 +1026,7 @@ function aggregate(rows, sd){
       porDow[dow][e]+=h;
       porEquipamento[eq][e]+=h;
       porFrente[fr][e]+=h;
+      porFrenteEquip[fr][eq][e]+=h;
       // distribui por hora do dia baseado no padrão de cintilação daquele dia
       for(let hr=0;hr<24;hr++){
         const hf=dist.byHour[hr][e]/dist.total;
@@ -1030,7 +1047,7 @@ function aggregate(rows, sd){
   return{horas,porHora,porDia,porDow,porDiaRtk,total,nMatch,rf,
     forte:horas['Forte'],degr:horas['Moderada']+horas['Forte'],
     meta:rows._meta||{totalE:rf.length,semData:0},
-    totalHorasRtk,totalHorasSemRtk,totalHorasSemRtkCint,hasRtkData,porEquipamento,porFrente};
+    totalHorasRtk,totalHorasSemRtk,totalHorasSemRtkCint,hasRtkData,porEquipamento,porFrente,porFrenteEquip};
 }
 
 /* ── informativo de datas disponíveis ── */
@@ -1362,24 +1379,32 @@ function renderRtk(a){
       tf.innerHTML='<div class="placeholder" style="padding:22px 20px"><p>Nenhuma frente encontrada na base.<br>'+
         'Verifique se a planilha possui a coluna <b>Frente</b>.</p></div>';
     }else{
+      const pctCell=(r)=>{
+        const p=r.horas&&hasRtkData?r.horasRtk/r.horas*100:0;
+        return hasRtkData?`<span style="color:${p>=80?'#52a447':p>=50?'#e6a52e':'#d9534f'};font-weight:700">${p.toFixed(1)}%</span>`:'—';
+      };
+      const cols=(r)=>`
+        <td>${r.horas.toFixed(2)}h</td>
+        <td>${hasRtkData?r.horasRtk.toFixed(2)+'h':'—'}</td>
+        <td>${hasRtkData?r.horasSemRtk.toFixed(2)+'h':'—'}</td>
+        <td>${pctCell(r)}</td>
+        <td><span class="dot" style="background:#d9534f"></span>${hasRtkData?r.horasSemRtkCint.toFixed(2)+'h':'—'}</td>`;
+
       tf.innerHTML=
         `<table class="tbl"><thead><tr>
-          <th>#</th><th>Frente</th><th>Total E (h)</th>
+          <th>Frente / Equipamento</th><th>Total E (h)</th>
           <th>Uso RTK em E (h)</th><th>Uso E sem RTK (h)</th><th>% RTK</th>
           <th>E s/ RTK em Cintilação (h)</th>
         </tr></thead><tbody>`+
         frentes.map((f,i)=>{
-          const r=porFrente[f];
-          const pctRtk=r.horas&&hasRtkData?r.horasRtk/r.horas*100:0;
-          return `<tr>
-            <td>${i+1}</td>
-            <td><b>${f}</b></td>
-            <td>${r.horas.toFixed(2)}h</td>
-            <td>${hasRtkData?r.horasRtk.toFixed(2)+'h':'—'}</td>
-            <td>${hasRtkData?r.horasSemRtk.toFixed(2)+'h':'—'}</td>
-            <td>${hasRtkData?`<span style="color:${pctRtk>=80?'#52a447':pctRtk>=50?'#e6a52e':'#d9534f'};font-weight:700">${pctRtk.toFixed(1)}%</span>`:'—'}</td>
-            <td><span class="dot" style="background:#d9534f"></span>${hasRtkData?r.horasSemRtkCint.toFixed(2)+'h':'—'}</td>
-          </tr>`;
+          const rf=porFrente[f];
+          const eqMap=porFrenteEquip[f]||{};
+          const eqsF=Object.keys(eqMap).sort((x,y)=>eqMap[y].horas-eqMap[x].horas);
+          // linha de cabeçalho da frente (totais)
+          let html=`<tr class="grp"><td><b>${i+1}. ${f}</b></td>${cols(rf)}</tr>`;
+          // equipamentos da frente, logo abaixo
+          html+=eqsF.map(eq=>`<tr class="sub"><td>↳ ${eq}</td>${cols(eqMap[eq])}</tr>`).join('');
+          return html;
         }).join('')+
         '</tbody></table>';
     }
