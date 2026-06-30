@@ -5,6 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Performance Operacional × Cintilação</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <style>
   :root{
     --bg:#eef0f2;--card:#fff;--ink:#2b3a30;--dim:#7c8a80;--faint:#a7b2aa;
@@ -206,6 +207,8 @@
   <div class="main">
     <div class="topbar">
       <div class="filters">
+        <button class="importbtn" id="btnBase" onclick="document.getElementById('fileBase').click()">Importar Base Operacional</button>
+        <input type="file" id="fileBase" accept=".xlsx,.xls,.csv" style="display:none">
         <button class="importbtn" id="btnRtk" onclick="document.getElementById('fileRtk').click()">Importar RTK</button>
         <input type="file" id="fileRtk" accept=".txt,.csv" style="display:none">
         <button class="importbtn" id="btnSci" onclick="document.getElementById('fileSci').click()">Importar Cintilação</button>
@@ -445,6 +448,9 @@ const ORDER=['Sem cintilacao','Fraca','Moderada','Forte'];
 const COLOR={'Sem cintilacao':'#52a447','Fraca':'#e6a52e','Moderada':'#e8842c','Forte':'#d9534f'};
 const LABEL={'Sem cintilacao':'Sem cintilação','Fraca':'Fraca','Moderada':'Moderada','Forte':'Forte'};
 const DOW=['Dom','Seg','Ter','Qua','Qui','Sex','Sáb'];
+/* Base Operacional: código da atividade produtiva (estado E).
+   O USO de RTK em estado E é o "Tempo Efetivo" dessa operação. */
+const COD_PRODUTIVO=295;
 
 /* ── estado global ── */
 let rtkRows=null, sciData=null, usingDemo=true, activeTab='geral';
@@ -639,6 +645,93 @@ function parseRtk(text){
   return rows;
 }
 
+/* ── parser Base Operacional (planilha xlsx/csv) ──
+   Considera apenas a operação produtiva (CD Atividade = COD_PRODUTIVO).
+   Mapeia para a mesma estrutura usada pelo RTK:
+     • horas (estado E)  = Tempo Decimal  (tempo total da operação produtiva)
+     • horasRtk          = Tempo Efetivo  (USO do RTK em estado E)
+     • horasSemRtk        = Tempo Decimal − Tempo Efetivo                       */
+function parseDataCell(v){
+  if(v==null)return null;
+  if(v instanceof Date&&!isNaN(v))
+    return new Date(Date.UTC(v.getFullYear(),v.getMonth(),v.getDate()));
+  // número = data serial do Excel (epoch 1899-12-30; 25569 = dias até 1970-01-01)
+  if(typeof v==='number'&&isFinite(v)){
+    const d=new Date(Math.round((v-25569)*86400000));
+    return isNaN(d)?null:new Date(Date.UTC(d.getUTCFullYear(),d.getUTCMonth(),d.getUTCDate()));
+  }
+  const s=String(v).trim();
+  let m=s.match(/^(\d{4})-(\d{1,2})-(\d{1,2})/);
+  if(m)return new Date(Date.UTC(+m[1],+m[2]-1,+m[3]));
+  m=s.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})/);
+  if(m)return new Date(Date.UTC(+m[3],+m[2]-1,+m[1]));
+  const d=new Date(s);
+  return isNaN(d)?null:new Date(Date.UTC(d.getFullYear(),d.getMonth(),d.getDate()));
+}
+
+function parseBase(arrBuf){
+  const wb=XLSX.read(arrBuf,{type:'array'});
+  const wsName=wb.SheetNames.includes('Export')?'Export':wb.SheetNames[0];
+  const ws=wb.Sheets[wsName];
+  const aoa=XLSX.utils.sheet_to_json(ws,{header:1,raw:true,defval:null});
+  if(aoa.length<2)throw new Error('Planilha vazia.');
+
+  const norm=s=>String(s==null?'':s).toUpperCase().normalize('NFD')
+    .replace(/[̀-ͯ]/g,'').replace(/[^A-Z0-9]/g,'');
+  const H=aoa[0].map(norm);
+  const find=(...keys)=>{
+    for(const k of keys){const i=H.indexOf(norm(k));if(i>=0)return i;}
+    for(let i=0;i<H.length;i++)for(const k of keys)if(H[i].includes(norm(k)))return i;
+    return -1;
+  };
+  const iData =find('Data');
+  const iCd   =find('CD Atividade','CodAtividade');
+  const iEf   =find('Tempo Efetivo');
+  const iDec  =find('Tempo Decimal');
+  const iEq   =find('Equipamento');
+  const iFr   =find('Frente');
+  const iMod  =find('Modelo');
+  const iQd   =find('cod_quadra');
+  const iTl   =find('cod_talhao');
+
+  if(iData<0)throw new Error('Coluna "Data" não encontrada na planilha.');
+  if(iCd<0)  throw new Error('Coluna "CD Atividade" não encontrada na planilha.');
+  if(iEf<0&&iDec<0)throw new Error('Colunas de tempo ("Tempo Efetivo"/"Tempo Decimal") não encontradas.');
+
+  const rows=[];let totalE=0,semData=0;
+  for(let i=1;i<aoa.length;i++){
+    const c=aoa[i];if(!c)continue;
+    const cd=parseInt(String(c[iCd]).replace(/[^0-9-]/g,''),10);
+    if(cd!==COD_PRODUTIVO)continue;          // só a operação produtiva (estado E)
+    totalE++;
+
+    const dt=parseDataCell(c[iData]);
+    const efetivo=iEf>=0?parseNum(c[iEf]):NaN;       // USO do RTK em estado E
+    const decimal=iDec>=0?parseNum(c[iDec]):NaN;      // tempo total da operação
+    const horas=(!isNaN(decimal)&&decimal>0)?decimal:efetivo;
+    if(!dt||isNaN(horas)||horas<=0){semData++;continue;}
+
+    let horasRtk=NaN,horasSemRtk=NaN;
+    if(!isNaN(efetivo)){horasRtk=efetivo;horasSemRtk=Math.max(0,horas-efetivo);}
+
+    const frente     =iFr>=0?(c[iFr]!=null?String(c[iFr]).trim():''):'';
+    const modelo     =iMod>=0?(c[iMod]!=null?String(c[iMod]).trim():''):'';
+    const equipamento=iEq>=0?(c[iEq]!=null?String(c[iEq]).trim():''):'';
+    const quadra     =iQd>=0?(c[iQd]!=null?String(c[iQd]).trim():''):'';
+    const talhao     =iTl>=0?(c[iTl]!=null?String(c[iTl]).trim():''):'';
+
+    rows.push({dt,dateStr:dateKey(dt),horas,
+      talhao:frente,                 // filtro "Frente"
+      zona:quadra,tal:talhao,
+      grupo:modelo,                  // filtro "Grupo" = Modelo do equipamento
+      equipamento,horasRtk,horasSemRtk});
+  }
+  if(rows.length===0)
+    throw new Error(`Nenhum registro com CD Atividade = ${COD_PRODUTIVO} (operação produtiva) encontrado.`);
+  rows._meta={totalE,semData};
+  return rows;
+}
+
 /* ── parser Cintilação ── */
 function parseSci(text){
   const lines=text.split(/\r?\n/).filter(l=>l.trim()!=='');
@@ -784,6 +877,40 @@ function load(input,kind){
   }catch(err){alert('Erro ao ler '+(kind==='rtk'?'RTK':'cintilação')+':\n'+err.message);}};
   r.readAsText(f,'utf-8');
 }
+/* preenche os selects de Grupo/Frente a partir das linhas carregadas */
+function popularSelects(rows){
+  const grupoSet=[...new Set(rows.map(r=>r.grupo).filter(Boolean))].sort();
+  const selG=document.getElementById('selGrupo');
+  selG.innerHTML='<option value="">Todos os grupos</option>'+
+    grupoSet.map(g=>`<option value="${g}">${g}</option>`).join('');
+  const frenteSet=[...new Set(rows.map(r=>r.talhao).filter(Boolean))].sort();
+  const sel=document.getElementById('selFrente');
+  sel.innerHTML='<option value="">Todas as frentes</option>'+
+    frenteSet.map(f=>`<option value="${f}">${f}</option>`).join('');
+}
+
+/* carrega a Base Operacional (xlsx/csv) */
+function loadBase(input){
+  const f=input.files[0];if(!f)return;
+  const r=new FileReader();
+  r.onload=e=>{try{
+    rtkRows=parseBase(e.target.result);
+    document.getElementById('btnBase').classList.add('done');
+    document.getElementById('btnBase').firstChild.textContent='Base ✓ ';
+    popularSelects(rtkRows);
+    // ajusta o período para a cobertura da base importada
+    const dates=[...new Set(rtkRows.map(r=>r.dateStr))].sort();
+    if(dates.length){
+      document.getElementById('dtIni').value=dates[0];
+      document.getElementById('dtFim').value=dates[dates.length-1];
+    }
+    if(rtkRows&&sciData){usingDemo=false;document.getElementById('demoFlag').textContent='';}
+    else document.getElementById('demoFlag').textContent=' · importe a cintilação para cruzar';
+    render();
+  }catch(err){alert('Erro ao ler Base Operacional:\n'+err.message);}};
+  r.readAsArrayBuffer(f);
+}
+document.getElementById('fileBase').addEventListener('change',function(){loadBase(this);});
 document.getElementById('fileRtk').addEventListener('change',function(){load(this,'rtk');});
 document.getElementById('fileSci').addEventListener('change',function(){load(this,'sci');});
 document.getElementById('dtIni').addEventListener('change',render);
