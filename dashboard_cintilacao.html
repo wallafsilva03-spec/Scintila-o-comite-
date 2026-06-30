@@ -649,8 +649,9 @@ function parseRtk(text){
    Considera SOMENTE a operação produtiva (CD Atividade = COD_PRODUTIVO).
    Mapeia para a mesma estrutura usada pelo RTK:
      • horas (estado E) = Tempo Efetivo  (tempo efetivo da operação 295)
-     • horasRtk          = Tempo Efetivo  (USO do RTK em estado E = todo o estado E)
-     • horasSemRtk        = 0                                                     */
+     • horasRtk          = Tempo Piloto   (USO do RTK em estado E)
+     • horasSemRtk        = Tempo Efetivo − Tempo Piloto
+   Se a coluna "Tempo Piloto" não existir, o detalhamento de RTK fica indisponível. */
 function parseDataCell(v){
   if(v==null)return null;
   if(v instanceof Date&&!isNaN(v))
@@ -687,6 +688,7 @@ function parseBase(arrBuf){
   const iData =find('Data');
   const iCd   =find('CD Atividade','CodAtividade');
   const iEf   =find('Tempo Efetivo');
+  const iPil  =find('Tempo Piloto');
   const iEq   =find('Equipamento');
   const iFr   =find('Frente');
   const iMod  =find('Modelo');
@@ -706,11 +708,12 @@ function parseBase(arrBuf){
 
     const dt=parseDataCell(c[iData]);
     const efetivo=parseNum(c[iEf]);                   // tempo efetivo da operação 295 = estado E
+    const piloto =iPil>=0?parseNum(c[iPil]):NaN;       // tempo piloto = uso do RTK
     const horas=efetivo;
     if(!dt||isNaN(horas)||horas<=0){semData++;continue;}
 
-    // todo o tempo efetivo em estado E corresponde ao uso de RTK
-    const horasRtk=horas,horasSemRtk=0;
+    let horasRtk=NaN,horasSemRtk=NaN;
+    if(!isNaN(piloto)){horasRtk=piloto;horasSemRtk=Math.max(0,efetivo-piloto);}
 
     const frente     =iFr>=0?(c[iFr]!=null?String(c[iFr]).trim():''):'';
     const modelo     =iMod>=0?(c[iMod]!=null?String(c[iMod]).trim():''):'';
