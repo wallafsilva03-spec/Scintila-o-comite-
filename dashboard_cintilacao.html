@@ -214,6 +214,8 @@
       <div class="filters">
         <button class="importbtn" id="btnBase" onclick="document.getElementById('fileBase').click()">Importar Base Operacional</button>
         <input type="file" id="fileBase" accept=".xlsx,.xls,.csv" style="display:none">
+        <button class="importbtn" id="btnProj" onclick="document.getElementById('fileProj').click()">Importar Status de Projetos</button>
+        <input type="file" id="fileProj" accept=".xlsx,.xls,.csv" style="display:none">
         <button class="importbtn" id="btnRtk" onclick="document.getElementById('fileRtk').click()">Importar RTK</button>
         <input type="file" id="fileRtk" accept=".txt,.csv" style="display:none">
         <button class="importbtn" id="btnSci" onclick="document.getElementById('fileSci').click()">Importar Cintilação</button>
@@ -324,6 +326,11 @@
       </div>
       <div class="row">
         <div class="panel" id="rtkMetricsPanel"></div>
+      </div>
+
+      <!-- ── uso de piloto em áreas com projeto ── -->
+      <div class="row">
+        <div class="panel" id="rtkProjPanel"></div>
       </div>
 
       <!-- ── separação por FRENTE ── -->
@@ -480,7 +487,7 @@ const DOW=['Dom','Seg','Ter','Qua','Qui','Sex','Sáb'];
 const COD_PRODUTIVO=295;
 
 /* ── estado global ── */
-let rtkRows=null, sciData=null, usingDemo=true, activeTab='geral';
+let rtkRows=null, sciData=null, projData=null, usingDemo=true, activeTab='geral';
 const charts={};
 let lastAgg=null;
 
@@ -719,6 +726,7 @@ function parseBase(arrBuf){
   const iEq   =find('Equipamento');
   const iFr   =find('Frente');
   const iMod  =find('Modelo');
+  const iFz   =find('Fazenda');
   const iQd   =find('cod_quadra');
   const iTl   =find('cod_talhao');
 
@@ -745,19 +753,73 @@ function parseBase(arrBuf){
     const frente     =iFr>=0?(c[iFr]!=null?String(c[iFr]).trim():''):'';
     const modelo     =iMod>=0?(c[iMod]!=null?String(c[iMod]).trim():''):'';
     const equipamento=iEq>=0?(c[iEq]!=null?String(c[iEq]).trim():''):'';
+    const fazenda    =iFz>=0?(c[iFz]!=null?String(c[iFz]).trim():''):'';
     const quadra     =iQd>=0?(c[iQd]!=null?String(c[iQd]).trim():''):'';
     const talhao     =iTl>=0?(c[iTl]!=null?String(c[iTl]).trim():''):'';
+    // código da fazenda = prefixo numérico (ex.: "2470 - FAZ VALE DA SAUDE" → 2470)
+    const mFaz=fazenda.match(/\d+/);
+    const fazendaCod=mFaz?parseInt(mFaz[0],10):NaN;
 
     rows.push({dt,dateStr:dateKey(dt),horas,
       talhao:frente,                 // filtro "Frente"
       zona:quadra,tal:talhao,
       grupo:modelo,                  // filtro "Grupo" = Modelo do equipamento
+      fazenda,fazendaCod,
       equipamento,horasRtk,horasSemRtk});
   }
   if(rows.length===0)
     throw new Error(`Nenhum registro com CD Atividade = ${COD_PRODUTIVO} (operação produtiva) encontrado.`);
   rows._meta={totalE,semData};
   return rows;
+}
+
+/* ── parser Status de Projetos (xlsx) ──
+   Lê o status de projeto por FAZENDA (coluna "FA") e marca quais têm projeto.
+   Usado para filtrar o USO DE PILOTO somente em ÁREAS COM PROJETO.            */
+function parseProjetos(arrBuf){
+  const wb=XLSX.read(arrBuf,{type:'array'});
+  const norm=s=>String(s==null?'':s).toUpperCase().normalize('NFD')
+    .replace(/[̀-ͯ]/g,'').replace(/[^A-Z0-9]/g,'');
+  const temProjetoDe=st=>{const u=norm(st);return u.includes('COMPLETO')||u.includes('PARCIAL');};
+
+  const map=new Map();              // fazendaCod → {status, area, nome, temProjeto}
+  let totalArea=0,totalAreaProjeto=0;
+
+  // varre todas as abas; usa as que tiverem cabeçalho com "FA" + "STATUS"
+  for(const sn of wb.SheetNames){
+    const aoa=XLSX.utils.sheet_to_json(wb.Sheets[sn],{header:1,raw:true,defval:null});
+    // acha a linha de cabeçalho que contém "FA" e "STATUS"
+    let hr=-1;
+    for(let i=0;i<Math.min(aoa.length,15);i++){
+      const r=(aoa[i]||[]).map(norm);
+      if(r.includes('FA')&&r.includes('STATUS')){hr=i;break;}
+    }
+    if(hr<0)continue;
+    const H=(aoa[hr]||[]).map(norm);
+    const cFA=H.indexOf('FA'),cST=H.indexOf('STATUS'),cAR=H.indexOf('AREA'),
+          cNO=H.findIndex(h=>h.includes('NOME')||h.includes('FAZENDA'));
+    for(let i=hr+1;i<aoa.length;i++){
+      const r=aoa[i];if(!r||r[cFA]==null)continue;
+      const fa=parseInt(String(r[cFA]).replace(/[^0-9]/g,''),10);
+      if(isNaN(fa))continue;
+      const status=cST>=0&&r[cST]!=null?String(r[cST]).trim():'';
+      if(!status)continue;
+      const area=cAR>=0&&typeof r[cAR]==='number'?r[cAR]:(cAR>=0?parseNum(r[cAR]):NaN);
+      const nome=cNO>=0&&r[cNO]!=null?String(r[cNO]).trim():'';
+      const tp=temProjetoDe(status);
+      // não sobrescreve um "com projeto" já registrado
+      if(map.has(fa)&&map.get(fa).temProjeto&&!tp)continue;
+      map.set(fa,{status,area:isNaN(area)?0:area,nome,temProjeto:tp});
+    }
+  }
+  if(map.size===0)
+    throw new Error('Nenhuma fazenda encontrada. Esperado uma aba com colunas "FA" e "STATUS".');
+
+  // totais de área (cada fazenda contada uma vez)
+  for(const v of map.values()){totalArea+=v.area;if(v.temProjeto)totalAreaProjeto+=v.area;}
+  const comProjeto=[...map.values()].filter(v=>v.temProjeto).length;
+
+  return{map,totalArea,totalAreaProjeto,nFaz:map.size,comProjeto};
 }
 
 /* ── parser Cintilação ── */
@@ -939,6 +1001,19 @@ function loadBase(input){
   }catch(err){alert('Erro ao ler Base Operacional:\n'+err.message);}};
   r.readAsArrayBuffer(f);
 }
+/* carrega o Status de Projetos (xlsx) */
+function loadProjetos(input){
+  const f=input.files[0];if(!f)return;
+  const r=new FileReader();
+  r.onload=e=>{try{
+    projData=parseProjetos(e.target.result);
+    document.getElementById('btnProj').classList.add('done');
+    document.getElementById('btnProj').firstChild.textContent='Projetos ✓ ';
+    render();
+  }catch(err){alert('Erro ao ler Status de Projetos:\n'+err.message);}};
+  r.readAsArrayBuffer(f);
+}
+document.getElementById('fileProj').addEventListener('change',function(){loadProjetos(this);});
 document.getElementById('fileBase').addEventListener('change',function(){loadBase(this);});
 document.getElementById('fileRtk').addEventListener('change',function(){load(this,'rtk');});
 document.getElementById('fileSci').addEventListener('change',function(){load(this,'sci');});
@@ -970,9 +1045,14 @@ function aggregate(rows, sd){
   const porEquipamento={};
   const porFrente={};
   const porFrenteEquip={};   // frente → { equipamento → métricas }
-  const novaMetrica=()=>({'Sem cintilacao':0,Fraca:0,Moderada:0,Forte:0,horas:0,horasRtk:0,horasSemRtk:0,horasSemRtkCint:0});
+  const novaMetrica=()=>({'Sem cintilacao':0,Fraca:0,Moderada:0,Forte:0,horas:0,horasRtk:0,horasSemRtk:0,horasSemRtkCint:0,horasProjeto:0,pilotoProjeto:0});
   let total=0,nMatch=0,nSemCint=0;
   let totalHorasRtk=0,totalHorasSemRtk=0,totalHorasSemRtkCint=0,hasRtkData=false;
+  // projetos: uso de piloto somente em áreas com projeto (cruzamento por FA = código da fazenda)
+  const hasProjData=!!projData;
+  let totalHorasProjeto=0,totalPilotoProjeto=0;
+  const fazProjGlobal=new Set();   // fazendas (com projeto) operadas no período
+  const frenteFaz={};               // frente → Set de fazendas com projeto
 
   for(const r of rf){
     const dk=r.dateStr;
@@ -1000,6 +1080,17 @@ function aggregate(rows, sd){
     fe.horas+=r.horas;
     if(!isNaN(r.horasRtk))fe.horasRtk+=r.horasRtk;
     if(!isNaN(r.horasSemRtk))fe.horasSemRtk+=r.horasSemRtk;
+
+    // PROJETO: esta fazenda (FA) tem projeto? lê piloto somente em áreas com projeto
+    const pj=hasProjData?projData.map.get(r.fazendaCod):null;
+    if(pj&&pj.temProjeto){
+      totalHorasProjeto+=r.horas;
+      porFrente[fr].horasProjeto+=r.horas;
+      fe.horasProjeto+=r.horas;
+      if(!isNaN(r.horasRtk)){totalPilotoProjeto+=r.horasRtk;porFrente[fr].pilotoProjeto+=r.horasRtk;fe.pilotoProjeto+=r.horasRtk;}
+      fazProjGlobal.add(r.fazendaCod);
+      (frenteFaz[fr]||(frenteFaz[fr]=new Set())).add(r.fazendaCod);
+    }
 
     const dist=sd.dayDist.get(dk);
     if(!dist||dist.total===0){nSemCint++;continue;}
@@ -1045,10 +1136,18 @@ function aggregate(rows, sd){
     dbg.style.display='block';
   }
 
+  // áreas com projeto (cada fazenda contada uma vez)
+  const areaDe=fc=>hasProjData?(projData.map.get(fc)?.area||0):0;
+  const areaComProjeto=[...fazProjGlobal].reduce((s,fc)=>s+areaDe(fc),0);
+  const frenteAreaProjeto={};
+  for(const fr in frenteFaz)frenteAreaProjeto[fr]=[...frenteFaz[fr]].reduce((s,fc)=>s+areaDe(fc),0);
+
   return{horas,porHora,porDia,porDow,porDiaRtk,total,nMatch,rf,
     forte:horas['Forte'],degr:horas['Moderada']+horas['Forte'],
     meta:rows._meta||{totalE:rf.length,semData:0},
-    totalHorasRtk,totalHorasSemRtk,totalHorasSemRtkCint,hasRtkData,porEquipamento,porFrente,porFrenteEquip};
+    totalHorasRtk,totalHorasSemRtk,totalHorasSemRtkCint,hasRtkData,porEquipamento,porFrente,porFrenteEquip,
+    hasProjData,totalHorasProjeto,totalPilotoProjeto,areaComProjeto,frenteAreaProjeto,
+    projResumo:hasProjData?{totalAreaProjeto:projData.totalAreaProjeto,totalArea:projData.totalArea,nFaz:projData.nFaz,comProjeto:projData.comProjeto,fazOperadas:fazProjGlobal.size}:null};
 }
 
 /* ── informativo de datas disponíveis ── */
@@ -1215,7 +1314,8 @@ function renderGeral(a){
 /* ════ RTK ════ */
 function renderRtk(a){
   cd();
-  const{porDiaRtk,porHora,total,nMatch,rf,meta,totalHorasRtk,totalHorasSemRtk,totalHorasSemRtkCint,hasRtkData,porEquipamento,porFrente}=a;
+  const{porDiaRtk,porHora,total,nMatch,rf,meta,totalHorasRtk,totalHorasSemRtk,totalHorasSemRtkCint,hasRtkData,porEquipamento,porFrente,porFrenteEquip,
+    hasProjData,totalHorasProjeto,totalPilotoProjeto,areaComProjeto,frenteAreaProjeto,projResumo}=a;
   const dias=Object.keys(porDiaRtk).sort();
   const totalRtk=Object.values(porDiaRtk).reduce((s,v)=>s+v,0);
   const media=dias.length?totalRtk/dias.length:0;
@@ -1293,6 +1393,56 @@ function renderRtk(a){
           <p>Colunas de horas com/sem RTK não encontradas no arquivo.<br>
           Para habilitar, verifique se o arquivo possui colunas como <b>HRS C/ RTK</b> e <b>HRS S/ RTK</b>.</p>
         </div>`;
+    }
+  }
+
+  // ── uso de piloto em áreas com projeto ──
+  const pp=document.getElementById('rtkProjPanel');
+  if(pp){
+    if(!hasProjData){
+      pp.innerHTML=`
+        <h3>Uso de Piloto em Áreas com Projeto</h3>
+        <div class="pdesc">Cruzamento por F.A (código da fazenda) entre a base e o status de projetos.</div>
+        <div class="placeholder" style="padding:22px 20px">
+          <p>Importe o <b>Status de Projetos</b> para ver o uso de piloto somente nas áreas com projeto.<br>
+          O vínculo é feito pela coluna <b>FA</b> (código da fazenda).</p>
+        </div>`;
+    }else{
+      const pctPilProj=totalHorasProjeto&&hasRtkData?(totalPilotoProjeto/totalHorasProjeto*100):null;
+      const pctAreaProj=projResumo.totalArea?(projResumo.totalAreaProjeto/projResumo.totalArea*100):0;
+      const frentes=Object.keys(frenteAreaProjeto).sort((x,y)=>(porFrente[y].horasProjeto||0)-(porFrente[x].horasProjeto||0));
+      const kpis=[
+        {h:'Área com Projeto',big:areaComProjeto.toLocaleString('pt-BR',{maximumFractionDigits:0})+' ha',meta:`${projResumo.fazOperadas} fazendas operadas no período`,col:'#52a447'},
+        {h:'Horas E em Áreas c/ Projeto',big:totalHorasProjeto.toFixed(1)+'h',meta:'tempo efetivo (op. 295) em projeto',col:'var(--rail)'},
+        {h:'Uso de Piloto em Projeto',big:hasRtkData?totalPilotoProjeto.toFixed(1)+'h':'—',meta:'tempo piloto em áreas com projeto',col:'#1f3527'},
+        {h:'% Piloto em Projeto',big:pctPilProj==null?'—':pctPilProj.toFixed(1)+'%',meta:'piloto ÷ horas E (em projeto)',col:'#e6a52e'},
+      ];
+      pp.innerHTML=`
+        <h3>Uso de Piloto em Áreas com Projeto</h3>
+        <div class="pdesc">Lê o uso de piloto <b>somente em áreas com projeto</b> — vínculo por F.A. Status de projetos: ${projResumo.comProjeto}/${projResumo.nFaz} fazendas com projeto (${pctAreaProj.toFixed(0)}% da área).</div>
+        <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin:10px 0">
+          ${kpis.map(k=>`<div class="kpi" style="border-top-color:${k.col}">
+            <div class="h">${k.h}</div>
+            <div class="big" style="color:${k.col}">${k.big}</div>
+            <div class="meta">${k.meta}</div></div>`).join('')}
+        </div>
+        <table class="tbl"><thead><tr>
+          <th>#</th><th>Frente</th><th>Área Projeto (ha)</th>
+          <th>Horas E em Projeto (h)</th><th>Uso de Piloto (h)</th><th>% Piloto</th>
+        </tr></thead><tbody>`+
+        frentes.map((f,i)=>{
+          const hp=porFrente[f].horasProjeto||0, pl=porFrente[f].pilotoProjeto||0;
+          const pct=hp&&hasRtkData?pl/hp*100:0;
+          return `<tr>
+            <td>${i+1}</td><td><b>${f}</b></td>
+            <td>${(frenteAreaProjeto[f]||0).toLocaleString('pt-BR',{maximumFractionDigits:0})} ha</td>
+            <td>${hp.toFixed(2)}h</td>
+            <td>${hasRtkData?pl.toFixed(2)+'h':'—'}</td>
+            <td>${hasRtkData?`<span style="color:${pct>=80?'#52a447':pct>=50?'#e6a52e':'#d9534f'};font-weight:700">${pct.toFixed(1)}%</span>`:'—'}</td>
+          </tr>`;
+        }).join('')+
+        (frentes.length?'':'<tr><td colspan="6" style="text-align:center;color:var(--faint);padding:16px">Nenhuma fazenda da base com projeto no período filtrado.</td></tr>')+
+        '</tbody></table>';
     }
   }
 
