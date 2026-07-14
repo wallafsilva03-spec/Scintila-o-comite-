@@ -495,7 +495,7 @@ const COD_PRODUTIVO=[295,227,2660,2656,2655];
 /* descrições das atividades produtivas (usadas como rótulo no filtro quando a
    planilha não trouxer a coluna "Descrição Atividade" preenchida). */
 const COD_LABEL={295:'CORTE CANA MECANIZADO',227:'CARREGAMENTO TRANSBORDO',
-  2660:'SULACCAO C ADUBACAO',2656:'2 Subsolagem',2655:'Subsolagem'};
+  2660:'SULCACAO C ADUBACAO',2656:'2 Subsolagem',2655:'Subsolagem'};
 /* ordena frentes pelo número (FRENTE 2,3,4,5,6,7,8...); sem número vai para o fim */
 function frenteNum(f){const m=String(f).match(/\d+/);return m?+m[0]:9999;}
 const cmpFrente=(a,b)=>frenteNum(a)-frenteNum(b)||String(a).localeCompare(b);
