@@ -492,6 +492,10 @@ const DOW=['Dom','Seg','Ter','Qua','Qui','Sex','Sáb'];
    2660 · 2656 · 2655 = atividades adicionais analisadas em estado E.
    O USO de RTK em estado E é o "Tempo Efetivo" dessas operações. */
 const COD_PRODUTIVO=[295,227,2660,2656,2655];
+/* descrições das atividades produtivas (usadas como rótulo no filtro quando a
+   planilha não trouxer a coluna "Descrição Atividade" preenchida). */
+const COD_LABEL={295:'CORTE CANA MECANIZADO',227:'CARREGAMENTO TRANSBORDO',
+  2660:'SULACCAO C ADUBACAO',2656:'2 Subsolagem',2655:'Subsolagem'};
 /* ordena frentes pelo número (FRENTE 2,3,4,5,6,7,8...); sem número vai para o fim */
 function frenteNum(f){const m=String(f).match(/\d+/);return m?+m[0]:9999;}
 const cmpFrente=(a,b)=>frenteNum(a)-frenteNum(b)||String(a).localeCompare(b);
@@ -763,7 +767,7 @@ function parseBase(arrBuf){
     if(!isNaN(piloto)){horasRtk=piloto;horasSemRtk=Math.max(0,efetivo-piloto);}
 
     const descAtiv   =iDesc>=0?(c[iDesc]!=null?String(c[iDesc]).trim():''):'';
-    const atividade  =descAtiv||`Atividade ${cd}`;   // rótulo para o filtro de Descrição Atividade
+    const atividade  =descAtiv||COD_LABEL[cd]||`Atividade ${cd}`;   // rótulo para o filtro de Descrição Atividade
     const frente     =iFr>=0?(c[iFr]!=null?String(c[iFr]).trim():''):'';
     const modelo     =iMod>=0?(c[iMod]!=null?String(c[iMod]).trim():''):'';
     const equipamento=iEq>=0?(c[iEq]!=null?String(c[iEq]).trim():''):'';
@@ -938,8 +942,6 @@ function makeDemo(){
         const demoGrupos=['COLHEDORA','TRANSBORDO'];
         // todas as atividades produtivas (COD_PRODUTIVO): 295, 227, 2660, 2656, 2655
         const demoCods=[295,227,2660,2656,2655];
-        const demoAtivMap={295:'CORTE CANA MECANIZADO',227:'CARREGAMENTO TRANSBORDO',
-          2660:'Atividade 2660',2656:'Atividade 2656',2655:'Atividade 2655'};
         const demoEquips=['EQ-001','EQ-002','EQ-003','EQ-004','EQ-005'];
         const fi=(d+Math.floor(slot/12))%demoFrentes.length;
         const ci=(d*7+slot)%demoCods.length;   // varia a atividade ao longo dos blocos
@@ -950,7 +952,7 @@ function makeDemo(){
         rows.push({dt,dateStr:dk,horas:hDemo,
           talhao:demoFrentes[fi],zona:'0'+((d%2)+1),tal:String(1001+(d%4)),
           grupo:demoGrupos[fi%2],
-          atividade:demoAtivMap[cod],cdAtividade:cod,
+          atividade:COD_LABEL[cod]||`Atividade ${cod}`,cdAtividade:cod,
           equipamento:demoEquips[(d+Math.floor(slot/6))%demoEquips.length],
           horasRtk,horasSemRtk});
       }
