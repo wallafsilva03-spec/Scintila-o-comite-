@@ -654,6 +654,10 @@ function parseRtk(text){
   const iEq   =H.findIndex(h=>/COD\.?\s*EQUIP(?:AMENTO)?$|^EQUIPAMENTO$|^COD\.?\s*MAQ|^MAQUINA$/i.test(h));
   const iHrtk =H.findIndex(h=>/HRS?\s*C[\/\s]\s*RTK|HRS?\s*COM\s*RTK/i.test(h));
   const iHsrtk=H.findIndex(h=>/HRS?\s*S[\/\s]\s*RTK|HRS?\s*SEM\s*RTK/i.test(h));
+  // atividade: código (CD/COD ATIVIDADE) e/ou descrição (DESC/DESCRIÇÃO ATIVIDADE / OPERAÇÃO)
+  const iAtCd =H.findIndex(h=>/(?:^|\W)(?:CD|COD|C[ÓO]D(?:IGO)?)\.?\s*ATIVIDADE/i.test(h));
+  const iAtDs =H.findIndex(h=>/DESCR?\w*\s*ATIVIDADE|ATIVIDADE\s*DESCR/i.test(h));
+  const iAtOp =H.findIndex(h=>/^ATIVIDADE$|OPERA[CÇ][AÃ]O|^OPERACAO$/i.test(h));
 
   if(iE<0) throw new Error('Coluna ESTADO não encontrada no arquivo RTK.');
   if(iU<0&&iL<0) throw new Error('Coluna DATA/HORA não encontrada (esperado: DATA/HORA UTC ou DATA/HORA LOCAL).');
@@ -687,10 +691,15 @@ function parseRtk(text){
     if(iHsrtk>=0&&c[iHsrtk]!==undefined) horasSemRtk=parseNum(c[iHsrtk]);
     if(!isNaN(horasRtk)&&isNaN(horasSemRtk)) horasSemRtk=Math.max(0,horas-horasRtk);
     if(isNaN(horasRtk)&&!isNaN(horasSemRtk)) horasRtk=Math.max(0,horas-horasSemRtk);
-    rows.push({dt, dateStr:dateKey(dt), horas, talhao, zona, tal, grupo, equipamento, horasRtk, horasSemRtk});
+    // atividade: descrição (se houver) ou rótulo pelo código; senão fica vazio
+    const cdAtiv = iAtCd>=0 ? parseInt(String(c[iAtCd]).replace(/[^0-9-]/g,''),10) : NaN;
+    let descAtiv = iAtDs>=0 ? (c[iAtDs]?.trim()||'') : '';
+    if(!descAtiv && iAtOp>=0) descAtiv=(c[iAtOp]?.trim()||'');
+    const atividade = descAtiv || (isFinite(cdAtiv)?(COD_LABEL[cdAtiv]||`Atividade ${cdAtiv}`):'');
+    rows.push({dt, dateStr:dateKey(dt), horas, talhao, zona, tal, grupo, equipamento, horasRtk, horasSemRtk, atividade, cdAtividade:cdAtiv});
   }
 
-  rows._meta={totalE,semData};
+  rows._meta={totalE,semData,hasAtiv:(iAtCd>=0||iAtDs>=0||iAtOp>=0)};
   return rows;
 }
 
@@ -971,16 +980,14 @@ function load(input,kind){
       rtkRows=parseRtk(e.target.result);
       document.getElementById('btnRtk').classList.add('done');
       document.getElementById('btnRtk').firstChild.textContent='RTK ✓ ';
-      // popula select de grupos
-      const grupoSet=[...new Set(rtkRows.map(r=>r.grupo).filter(Boolean))].sort();
-      const selG=document.getElementById('selGrupo');
-      selG.innerHTML='<option value="">Todos os grupos</option>'+
-        grupoSet.map(g=>`<option value="${g}">${g}</option>`).join('');
-      // popula select de frentes (valor = chave zona/talhao)
-      const frenteSet=[...new Set(rtkRows.map(r=>r.talhao).filter(Boolean))].sort();
-      const sel=document.getElementById('selFrente');
-      sel.innerHTML='<option value="">Todas as frentes</option>'+
-        frenteSet.map(f=>`<option value="${f}">${f}</option>`).join('');
+      // popula os selects de Grupo, Frente e Atividade a partir do RTK importado
+      popularSelects(rtkRows);
+      if(!rtkRows._meta?.hasAtiv){
+        const dbg=document.getElementById('debugBox');
+        dbg.style.display='block';
+        dbg.textContent+='\n\n⚠️ O arquivo RTK não traz coluna de Atividade '+
+          '(ex.: "CD Atividade" ou "Descrição Atividade"); o filtro por atividade fica indisponível para este arquivo.';
+      }
     }else{
       sciData=parseSci(e.target.result);
       document.getElementById('btnSci').classList.add('done');
