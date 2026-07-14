@@ -936,16 +936,21 @@ function makeDemo(){
         const dt=new Date(base);dt.setUTCDate(d+1);dt.setUTCHours(h);dt.setUTCMinutes(bb==='30'?40:10);
         const demoFrentes=['01 / 1001','01 / 1002','02 / 2001','02 / 2002'];
         const demoGrupos=['COLHEDORA','TRANSBORDO'];
-        const demoAtivs=['CORTE CANA MECANIZADO','CARREGAMENTO TRANSBORDO'];
+        // todas as atividades produtivas (COD_PRODUTIVO): 295, 227, 2660, 2656, 2655
+        const demoCods=[295,227,2660,2656,2655];
+        const demoAtivMap={295:'CORTE CANA MECANIZADO',227:'CARREGAMENTO TRANSBORDO',
+          2660:'Atividade 2660',2656:'Atividade 2656',2655:'Atividade 2655'};
         const demoEquips=['EQ-001','EQ-002','EQ-003','EQ-004','EQ-005'];
         const fi=(d+Math.floor(slot/12))%demoFrentes.length;
+        const ci=(d*7+slot)%demoCods.length;   // varia a atividade ao longo dos blocos
+        const cod=demoCods[ci];
         const hDemo=+(0.2+Math.random()*0.5).toFixed(2);
         const horasRtk=+(hDemo*(0.55+Math.random()*0.45)).toFixed(2);
         const horasSemRtk=+Math.max(0,hDemo-horasRtk).toFixed(2);
         rows.push({dt,dateStr:dk,horas:hDemo,
           talhao:demoFrentes[fi],zona:'0'+((d%2)+1),tal:String(1001+(d%4)),
           grupo:demoGrupos[fi%2],
-          atividade:demoAtivs[fi%2],cdAtividade:fi%2?227:295,
+          atividade:demoAtivMap[cod],cdAtividade:cod,
           equipamento:demoEquips[(d+Math.floor(slot/6))%demoEquips.length],
           horasRtk,horasSemRtk});
       }
