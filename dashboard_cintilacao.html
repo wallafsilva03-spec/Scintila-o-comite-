@@ -230,6 +230,11 @@
           <select id="selFrente"><option value="">Todas as frentes</option></select>
           <span class="frente-tag">RISCO</span>
         </div>
+        <div class="frente-wrap">
+          <label>Atividade</label>
+          <select id="selAtividade"><option value="">Todas as atividades</option></select>
+          <span class="grupo-tag">DESCRIÇÃO</span>
+        </div>
       </div>
       <div class="filters">
         <div class="daterange">
@@ -514,7 +519,8 @@ function exportPDF(){
   const fim=document.getElementById('dtFim').value||'—';
   const frente=document.getElementById('selFrente').value;
   const grupo=document.getElementById('selGrupo')?.value||'';
-  const extras=[frente?`Frente: ${frente}`:'',grupo?`Grupo: ${grupo}`:''].filter(Boolean).join('  |  ');
+  const atividade=document.getElementById('selAtividade')?.value||'';
+  const extras=[frente?`Frente: ${frente}`:'',grupo?`Grupo: ${grupo}`:'',atividade?`Atividade: ${atividade}`:''].filter(Boolean).join('  |  ');
   document.getElementById('printMeta').textContent=
     `Período: ${ini} → ${fim}${extras?'  |  '+extras:''}  |  Gerado: `+
     new Date().toLocaleDateString('pt-BR',{day:'2-digit',month:'2-digit',year:'numeric',hour:'2-digit',minute:'2-digit'});
@@ -726,6 +732,7 @@ function parseBase(arrBuf){
   };
   const iData =find('Data');
   const iCd   =find('CD Atividade','CodAtividade');
+  const iDesc =find('Descrição Atividade','Descricao Atividade','Desc Atividade','Descr Atividade');
   const iEf   =find('Tempo Efetivo');
   const iPil  =find('Tempo Piloto');
   const iEq   =find('Equipamento');
@@ -755,6 +762,8 @@ function parseBase(arrBuf){
     let horasRtk=NaN,horasSemRtk=NaN;
     if(!isNaN(piloto)){horasRtk=piloto;horasSemRtk=Math.max(0,efetivo-piloto);}
 
+    const descAtiv   =iDesc>=0?(c[iDesc]!=null?String(c[iDesc]).trim():''):'';
+    const atividade  =descAtiv||`Atividade ${cd}`;   // rótulo para o filtro de Descrição Atividade
     const frente     =iFr>=0?(c[iFr]!=null?String(c[iFr]).trim():''):'';
     const modelo     =iMod>=0?(c[iMod]!=null?String(c[iMod]).trim():''):'';
     const equipamento=iEq>=0?(c[iEq]!=null?String(c[iEq]).trim():''):'';
@@ -769,6 +778,7 @@ function parseBase(arrBuf){
       talhao:frente,                 // filtro "Frente"
       zona:quadra,tal:talhao,
       grupo:modelo,                  // filtro "Grupo" = Modelo do equipamento
+      atividade,cdAtividade:cd,      // filtro "Descrição Atividade"
       fazenda,fazendaCod,
       equipamento,horasRtk,horasSemRtk});
   }
@@ -926,6 +936,7 @@ function makeDemo(){
         const dt=new Date(base);dt.setUTCDate(d+1);dt.setUTCHours(h);dt.setUTCMinutes(bb==='30'?40:10);
         const demoFrentes=['01 / 1001','01 / 1002','02 / 2001','02 / 2002'];
         const demoGrupos=['COLHEDORA','TRANSBORDO'];
+        const demoAtivs=['CORTE CANA MECANIZADO','CARREGAMENTO TRANSBORDO'];
         const demoEquips=['EQ-001','EQ-002','EQ-003','EQ-004','EQ-005'];
         const fi=(d+Math.floor(slot/12))%demoFrentes.length;
         const hDemo=+(0.2+Math.random()*0.5).toFixed(2);
@@ -934,6 +945,7 @@ function makeDemo(){
         rows.push({dt,dateStr:dk,horas:hDemo,
           talhao:demoFrentes[fi],zona:'0'+((d%2)+1),tal:String(1001+(d%4)),
           grupo:demoGrupos[fi%2],
+          atividade:demoAtivs[fi%2],cdAtividade:fi%2?227:295,
           equipamento:demoEquips[(d+Math.floor(slot/6))%demoEquips.length],
           horasRtk,horasSemRtk});
       }
@@ -982,6 +994,10 @@ function popularSelects(rows){
   const sel=document.getElementById('selFrente');
   sel.innerHTML='<option value="">Todas as frentes</option>'+
     frenteSet.map(f=>`<option value="${f}">${f}</option>`).join('');
+  const ativSet=[...new Set(rows.map(r=>r.atividade).filter(Boolean))].sort();
+  const selA=document.getElementById('selAtividade');
+  selA.innerHTML='<option value="">Todas as atividades</option>'+
+    ativSet.map(a=>`<option value="${a}">${a}</option>`).join('');
 }
 
 /* carrega a Base Operacional (xlsx/csv) */
@@ -1025,6 +1041,7 @@ document.getElementById('fileSci').addEventListener('change',function(){load(thi
 document.getElementById('dtIni').addEventListener('change',render);
 document.getElementById('dtFim').addEventListener('change',render);
 document.getElementById('selGrupo').addEventListener('change',render);
+document.getElementById('selAtividade').addEventListener('change',render);
 document.getElementById('selFrente').addEventListener('change',()=>{
   if(!lastAgg)return;
   if(activeTab==='risco'){
@@ -1062,7 +1079,7 @@ function aggregate(rows, sd){
   const porFrenteEquip={};   // frente → { equipamento → métricas }
   const novaMetrica=()=>({'Sem cintilacao':0,Fraca:0,Moderada:0,Forte:0,horas:0,horasRtk:0,horasSemRtk:0,horasSemRtkCint:0,horasProjeto:0,pilotoProjeto:0});
   let total=0,nMatch=0,nSemCint=0;
-  let totalHorasRtk=0,totalHorasSemRtk=0,totalHorasSemRtkCint=0,hasRtkData=false;
+  let totalHorasRtk=0,totalHorasSemRtk=0,totalHorasSemRtkCint=0,totalHorasRtkCintMF=0,hasRtkData=false;
   // projetos: uso de piloto somente em áreas com projeto (cruzamento por FA = código da fazenda)
   let totalHorasProjeto=0,totalPilotoProjeto=0;
   const fazProjGlobal=new Set();   // fazendas (com projeto) operadas no período
@@ -1118,6 +1135,12 @@ function aggregate(rows, sd){
       porFrenteEquip[fr][eq].horasSemRtkCint+=r.horasSemRtk*fracCint;
     }
 
+    // USO de RTK (piloto) em estado E durante cintilação Moderada ou Forte
+    if(!isNaN(r.horasRtk)&&dist.total>0){
+      const fracMF=(dist['Moderada']+dist['Forte'])/dist.total;
+      totalHorasRtkCintMF+=r.horasRtk*fracMF;
+    }
+
     total+=r.horas;
     nMatch++;
     if(!porDia[dk])porDia[dk]={'Sem cintilacao':0,Fraca:0,Moderada:0,Forte:0};
@@ -1159,7 +1182,7 @@ function aggregate(rows, sd){
   return{horas,porHora,porDia,porDow,porDiaRtk,total,nMatch,rf,
     forte:horas['Forte'],degr:horas['Moderada']+horas['Forte'],
     meta:rows._meta||{totalE:rf.length,semData:0},
-    totalHorasRtk,totalHorasSemRtk,totalHorasSemRtkCint,hasRtkData,porEquipamento,porFrente,porFrenteEquip,
+    totalHorasRtk,totalHorasSemRtk,totalHorasSemRtkCint,totalHorasRtkCintMF,hasRtkData,porEquipamento,porFrente,porFrenteEquip,
     hasProjData,totalHorasProjeto,totalPilotoProjeto,areaComProjeto,frenteAreaProjeto,
     projResumo:hasProjData?{totalAreaProjeto:projData.totalAreaProjeto,totalArea:projData.totalArea,nFaz:projData.nFaz,comProjeto:projData.comProjeto,fazOperadas:fazProjGlobal.size}:null};
 }
@@ -1231,18 +1254,24 @@ function render(){
     // popula selects demo para teste
     const frenteSet=[...new Set(rows.map(r=>r.talhao).filter(Boolean))].sort();
     const grupoSet=[...new Set(rows.map(r=>r.grupo).filter(Boolean))].sort();
+    const ativSet=[...new Set(rows.map(r=>r.atividade).filter(Boolean))].sort();
     const selF=document.getElementById('selFrente');
     const selG=document.getElementById('selGrupo');
+    const selA=document.getElementById('selAtividade');
     if(selF.options.length<=1)
       selF.innerHTML='<option value="">Todas as frentes</option>'+frenteSet.map(f=>`<option value="${f}">${f}</option>`).join('');
     if(selG.options.length<=1)
       selG.innerHTML='<option value="">Todos os grupos</option>'+grupoSet.map(g=>`<option value="${g}">${g}</option>`).join('');
+    if(selA.options.length<=1)
+      selA.innerHTML='<option value="">Todas as atividades</option>'+ativSet.map(a=>`<option value="${a}">${a}</option>`).join('');
   }
   // base importada sem cintilação: usa mapa vazio para não quebrar o cruzamento
   if(!sd)sd={blockMap:new Map(),dayDist:new Map()};
-  // filtro global por grupo de equipamento
+  // filtro global por grupo de equipamento e por descrição de atividade
   const grupo=document.getElementById('selGrupo').value;
-  const rowsFilt=grupo?rows.filter(r=>r.grupo===grupo):rows;
+  const atividade=document.getElementById('selAtividade').value;
+  let rowsFilt=grupo?rows.filter(r=>r.grupo===grupo):rows;
+  if(atividade)rowsFilt=rowsFilt.filter(r=>r.atividade===atividade);
   renderDateInfo(rowsFilt,sd);
   lastAgg=aggregate(rowsFilt,sd);
   lastAgg._sd=sd;
@@ -1328,7 +1357,7 @@ function renderGeral(a){
 /* ════ RTK ════ */
 function renderRtk(a){
   cd();
-  const{porDiaRtk,porHora,total,nMatch,rf,meta,totalHorasRtk,totalHorasSemRtk,totalHorasSemRtkCint,hasRtkData,porEquipamento,porFrente,porFrenteEquip,
+  const{porDiaRtk,porHora,total,nMatch,rf,meta,totalHorasRtk,totalHorasSemRtk,totalHorasSemRtkCint,totalHorasRtkCintMF,hasRtkData,porEquipamento,porFrente,porFrenteEquip,
     hasProjData,totalHorasProjeto,totalPilotoProjeto,areaComProjeto,frenteAreaProjeto,projResumo}=a;
   const dias=Object.keys(porDiaRtk).sort();
   const totalRtk=Object.values(porDiaRtk).reduce((s,v)=>s+v,0);
@@ -1338,6 +1367,7 @@ function renderRtk(a){
     {h:'Registros estado E',big:rf.length,meta:hasProjData?'linhas — só áreas com projeto':'linhas filtradas',col:'var(--green)'},
     {h:'Horas Totais',big:totalRtk.toFixed(1)+'h',meta:`${dias.length} dias operados${hasProjData?' · só projeto':''}`,col:'var(--green)'},
     {h:'Média por Dia',big:media.toFixed(2)+'h',meta:'horas/dia operado',col:'var(--amber)'},
+    {h:'USO RTK em E · Mod+Forte',big:(totalHorasRtkCintMF||0).toFixed(1)+'h',meta:'piloto usado sob cintilação mod/forte',col:'var(--red)'},
     {h:'Sem data válida',big:meta.semData,meta:'registros descartados',col:'var(--faint)'},
   ].map(k=>`<div class="kpi" style="border-top-color:${k.col}">
     <div class="h">${k.h}</div>
