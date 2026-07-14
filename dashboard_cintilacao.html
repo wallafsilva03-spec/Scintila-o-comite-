@@ -484,8 +484,9 @@ const LABEL={'Sem cintilacao':'Sem cintilação','Fraca':'Fraca','Moderada':'Mod
 const DOW=['Dom','Seg','Ter','Qua','Qui','Sex','Sáb'];
 /* Base Operacional: códigos das atividades produtivas (estado E).
    295 = CORTE CANA MECANIZADO · 227 = CARREGAMENTO TRANSBORDO.
+   2660 · 2656 · 2655 = atividades adicionais analisadas em estado E.
    O USO de RTK em estado E é o "Tempo Efetivo" dessas operações. */
-const COD_PRODUTIVO=[295,227];
+const COD_PRODUTIVO=[295,227,2660,2656,2655];
 /* ordena frentes pelo número (FRENTE 2,3,4,5,6,7,8...); sem número vai para o fim */
 function frenteNum(f){const m=String(f).match(/\d+/);return m?+m[0]:9999;}
 const cmpFrente=(a,b)=>frenteNum(a)-frenteNum(b)||String(a).localeCompare(b);
@@ -742,7 +743,7 @@ function parseBase(arrBuf){
   for(let i=1;i<aoa.length;i++){
     const c=aoa[i];if(!c)continue;
     const cd=parseInt(String(c[iCd]).replace(/[^0-9-]/g,''),10);
-    if(!COD_PRODUTIVO.includes(cd))continue;  // só as operações produtivas (estado E): 295 e 227
+    if(!COD_PRODUTIVO.includes(cd))continue;  // só as operações produtivas (estado E): 295, 227, 2660, 2656, 2655
     totalE++;
 
     const dt=parseDataCell(c[iData]);
